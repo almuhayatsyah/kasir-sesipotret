@@ -1,0 +1,292 @@
+import { Link, router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
+
+// ── Icon SVG mini ────────────────────────────────────────
+const Icon = {
+    dashboard: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
+        </svg>
+    ),
+    pos: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <path d="M16 10a4 4 0 01-8 0" />
+        </svg>
+    ),
+    shift: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+        </svg>
+    ),
+    ingredient: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+            <path d="M3 3h18v4H3z" rx="1" /><path d="M5 7v13h14V7" />
+            <line x1="9" y1="11" x2="15" y2="11" /><line x1="9" y1="15" x2="15" y2="15" />
+        </svg>
+    ),
+    product: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
+            <path d="M8 12h8M12 8v8" />
+        </svg>
+    ),
+    logout: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+            <polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+    ),
+    chevron: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4">
+            <polyline points="9 18 15 12 9 6" />
+        </svg>
+    ),
+    menu: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-6 h-6">
+            <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+    ),
+    close: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-6 h-6">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+    ),
+};
+
+// ── Nav Item ─────────────────────────────────────────────
+function NavItem({ href, icon, label, active, collapsed, badge }) {
+    return (
+        <Link
+            href={href}
+            className={`
+                flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm
+                transition-all duration-150 group relative
+                ${active
+                    ? 'bg-indigo-500 text-white shadow-md shadow-indigo-200'
+                    : 'text-slate-400 hover:bg-slate-700/60 hover:text-white'
+                }
+            `}
+            title={collapsed ? label : undefined}
+        >
+            <span className={`shrink-0 ${active ? 'text-white' : 'text-slate-400 group-hover:text-white'}`}>
+                {icon}
+            </span>
+            {!collapsed && (
+                <span className="truncate">{label}</span>
+            )}
+            {badge > 0 && (
+                <span className={`
+                    ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0
+                    ${active ? 'bg-white/25 text-white' : 'bg-rose-500 text-white'}
+                    ${collapsed ? 'absolute -top-1 -right-1' : ''}
+                `}>
+                    {badge}
+                </span>
+            )}
+            {/* Tooltip saat collapsed */}
+            {collapsed && (
+                <span className="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg
+                    whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition z-50 shadow-xl">
+                    {label}
+                </span>
+            )}
+        </Link>
+    );
+}
+
+// ── Nav Section label ────────────────────────────────────
+function NavSection({ label, collapsed }) {
+    if (collapsed) return <div className="h-px bg-slate-700/50 my-2 mx-2" />;
+    return (
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 px-3 mt-5 mb-1.5">
+            {label}
+        </p>
+    );
+}
+
+// ── MAIN LAYOUT ──────────────────────────────────────────
+export default function AuthenticatedLayout({ header, children }) {
+    const { auth, flash } = usePage().props;
+    const user = auth?.user;
+
+    const [collapsed, setCollapsed] = useState(false);
+    const [mobileOpen, setMobileOpen]   = useState(false);
+
+    const cur = (name) => route().current(name);
+
+    const handleLogout = () => {
+        router.post(route('logout'));
+    };
+
+    const sidebarContent = (
+        <div className="flex flex-col h-full">
+
+            {/* Logo / Brand */}
+            <div className={`flex items-center gap-3 px-4 py-5 ${collapsed ? 'justify-center' : ''}`}>
+                <div className="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/30">
+                    <span className="text-white text-lg">☕</span>
+                </div>
+                {!collapsed && (
+                    <div>
+                        <p className="text-white font-bold text-sm leading-tight">Kasir Sesi</p>
+                        <p className="text-indigo-300 text-xs">Potret Coffee</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Nav */}
+            <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
+
+                <NavSection label="Utama" collapsed={collapsed} />
+                <NavItem href={route('dashboard')}         icon={Icon.dashboard}  label="Dashboard"  active={cur('dashboard')}              collapsed={collapsed} />
+                <NavItem href={route('pos.index')}         icon={Icon.pos}        label="Kasir POS"  active={cur('pos.index')}              collapsed={collapsed} />
+                <NavItem href={route('shift.index')}       icon={Icon.shift}      label="Manajemen Shift" active={cur('shift.index') || cur('shift.show')} collapsed={collapsed} />
+
+                <NavSection label="Inventori" collapsed={collapsed} />
+                <NavItem href={route('inventory.ingredients')} icon={Icon.ingredient} label="Bahan Baku"  active={cur('inventory.ingredients')} collapsed={collapsed} />
+                <NavItem href={route('inventory.products')}   icon={Icon.product}    label="Menu Produk" active={cur('inventory.products')}    collapsed={collapsed} />
+
+            </nav>
+
+            {/* User info + Logout */}
+            <div className={`border-t border-slate-700/50 p-3 space-y-1 ${collapsed ? 'items-center flex flex-col' : ''}`}>
+                {!collapsed && (
+                    <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-slate-700/40 mb-2">
+                        <div className="w-7 h-7 rounded-full bg-indigo-400 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                            {user?.name?.charAt(0) ?? 'U'}
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-white text-xs font-semibold truncate">{user?.name}</p>
+                            <p className="text-slate-400 text-[10px] truncate">{user?.email}</p>
+                        </div>
+                    </div>
+                )}
+                <button
+                    onClick={handleLogout}
+                    className={`
+                        flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium
+                        text-slate-400 hover:bg-rose-500/20 hover:text-rose-400
+                        transition-all duration-150 group relative
+                        ${collapsed ? 'justify-center' : ''}
+                    `}
+                    title={collapsed ? 'Keluar' : undefined}
+                >
+                    {Icon.logout}
+                    {!collapsed && <span>Keluar</span>}
+                    {collapsed && (
+                        <span className="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg
+                            whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition z-50 shadow-xl">
+                            Keluar
+                        </span>
+                    )}
+                </button>
+
+                {/* Collapse toggle */}
+                <button
+                    onClick={() => setCollapsed(c => !c)}
+                    className="hidden lg:flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs text-slate-500
+                        hover:bg-slate-700/40 hover:text-slate-300 transition justify-center"
+                >
+                    <svg
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                        className={`w-4 h-4 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}
+                    >
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    {!collapsed && <span>Sembunyikan</span>}
+                </button>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="min-h-screen bg-slate-50 flex">
+
+            {/* ── Sidebar Desktop ── */}
+            <aside className={`
+                hidden lg:flex flex-col shrink-0
+                bg-slate-800 transition-all duration-300 ease-in-out
+                ${collapsed ? 'w-[68px]' : 'w-60'}
+            `}>
+                {sidebarContent}
+            </aside>
+
+            {/* ── Sidebar Mobile overlay ── */}
+            {mobileOpen && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                    onClick={() => setMobileOpen(false)}
+                />
+            )}
+            <aside className={`
+                fixed top-0 left-0 h-full w-60 bg-slate-800 z-50 flex flex-col
+                lg:hidden transition-transform duration-300 ease-in-out
+                ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
+                {sidebarContent}
+            </aside>
+
+            {/* ── Main Content ── */}
+            <div className="flex-1 flex flex-col min-w-0">
+
+                {/* Top bar */}
+                <header className="sticky top-0 z-30 bg-white border-b border-slate-100 shadow-sm">
+                    <div className="flex items-center h-14 px-4 gap-3">
+                        {/* Hamburger mobile */}
+                        <button
+                            onClick={() => setMobileOpen(o => !o)}
+                            className="lg:hidden p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition"
+                        >
+                            {Icon.menu}
+                        </button>
+
+                        {/* Page title / header slot */}
+                        <div className="flex-1 min-w-0">
+                            {header ? (
+                                <div className="text-slate-800">{header}</div>
+                            ) : (
+                                <p className="font-semibold text-slate-700">Kasir Sesi Potret</p>
+                            )}
+                        </div>
+
+                        {/* User chip (desktop) */}
+                        <div className="hidden sm:flex items-center gap-2 text-sm text-slate-600">
+                            <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                                {user?.name?.charAt(0) ?? 'U'}
+                            </div>
+                            <span className="font-medium">{user?.name}</span>
+                        </div>
+                    </div>
+                </header>
+
+                {/* Flash messages */}
+                {(flash?.success || flash?.error || flash?.warning) && (
+                    <div className="px-6 pt-4">
+                        {flash.success && (
+                            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+                                <span>✅</span> {flash.success}
+                            </div>
+                        )}
+                        {flash.error && (
+                            <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+                                <span>❌</span> {flash.error}
+                            </div>
+                        )}
+                        {flash.warning && (
+                            <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+                                <span>⚠️</span> {flash.warning}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Page content */}
+                <main className="flex-1">{children}</main>
+            </div>
+        </div>
+    );
+}
