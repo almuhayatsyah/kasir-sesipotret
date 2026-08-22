@@ -4,11 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Ingredient;
 use App\Models\Product;
-use App\Models\Shift;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,36 +16,23 @@ use Inertia\Response;
 class POSController extends Controller
 {
     /**
-     * Tampilkan halaman POS utama (SPA).
-     * Kasir HARUS punya shift aktif untuk mengakses halaman ini.
+     * Tampilkan halaman POS utama — langsung tanpa perlu buka shift.
      */
-    public function index(): Response|RedirectResponse
+    public function index(): Response
     {
-        $user        = auth()->user();
-        $activeShift = Shift::where('user_id', $user->id)
-            ->where('status', 'open')
-            ->first();
-
-        // Redirect ke halaman shift jika belum buka shift
-        if (!$activeShift) {
-            return redirect()->route('shift.index')
-                ->with('warning', 'Buka shift terlebih dahulu sebelum memulai transaksi.');
-        }
-
         $products = Product::where('is_active', true)
             ->with('recipes.ingredient')
             ->orderBy('name')
             ->get();
 
         return Inertia::render('POS/Index', [
-            'shift'    => $activeShift,
             'products' => $products,
         ]);
     }
 
     /**
      * Proses transaksi baru.
-     * Core logic: simpan transaksi → simpan detail → AUTO-DEDUCT stok bahan baku.
+     * Simpan transaksi → simpan detail → AUTO-DEDUCT stok bahan baku.
      */
     public function checkout(Request $request): JsonResponse
     {
@@ -63,15 +48,6 @@ class POSController extends Controller
             'items.*.subtotal'   => 'required|integer|min:0',
         ]);
 
-        $user        = auth()->user();
-        $activeShift = Shift::where('user_id', $user->id)
-            ->where('status', 'open')
-            ->first();
-
-        if (!$activeShift) {
-            return response()->json(['message' => 'Tidak ada shift aktif.'], 422);
-        }
-
         $totalAmount = collect($validated['items'])->sum('subtotal');
         $change      = $validated['amount_paid'] - $totalAmount;
 
@@ -82,9 +58,9 @@ class POSController extends Controller
 
         DB::beginTransaction();
         try {
-            // 1. Buat header transaksi
+            // 1. Buat header transaksi (langsung ke user_id, tanpa shift)
             $transaction = Transaction::create([
-                'shift_id'       => $activeShift->id,
+                'user_id'        => auth()->id(),
                 'invoice_number' => $this->generateInvoiceNumber(),
                 'order_type'     => $validated['order_type'],
                 'table_number'   => $validated['table_number'] ?? null,
@@ -105,13 +81,8 @@ class POSController extends Controller
                 ]);
             }
 
-            // 3. AUTO-DEDUCT INVENTORY (Anti-Bocor)
+            // 3. AUTO-DEDUCT INVENTORY berdasarkan resep
             $this->deductInventory($validated['items']);
-
-            // 4. Update expected_ending_cash pada shift (jika bayar cash)
-            if ($validated['payment_method'] === 'cash') {
-                $activeShift->increment('expected_ending_cash', $totalAmount);
-            }
 
             DB::commit();
 
@@ -133,11 +104,9 @@ class POSController extends Controller
 
     /**
      * Auto-deduct stok bahan baku berdasarkan resep produk yang terjual.
-     * Setiap item dikali kuantitasnya, lalu dikurangi dari stok.
      */
     private function deductInventory(array $items): void
     {
-        // Group by product dan hitung total quantity
         $soldProducts = collect($items)->groupBy('product_id')->map(function ($group) {
             return $group->sum('quantity');
         });
@@ -166,17 +135,16 @@ class POSController extends Controller
 
     /**
      * Ambil data transaksi untuk keperluan re-print struk.
-     * Single-role: semua user yang login bisa re-print transaksi mereka.
      */
     public function getTransaction(Transaction $transaction): JsonResponse
     {
-        $transaction->load('details.product', 'shift.user');
+        $transaction->load('details.product', 'user');
 
         return response()->json($transaction);
     }
 
     /**
-     * Cek stok bahan baku yang hampir habis (untuk peringatan di POS).
+     * Cek stok bahan baku yang hampir habis.
      */
     public function lowStockAlert(): JsonResponse
     {

@@ -4,23 +4,22 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\POSController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ShiftController;
-use Illuminate\Foundation\Application;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\Setting\UserController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 // ─────────────────────────────────────────────
-// Root → redirect ke login atau POS
+// Root → redirect ke dashboard atau login
 // ─────────────────────────────────────────────
 Route::get('/', function () {
     if (auth()->check()) {
-        return redirect()->route('shift.index');
+        return redirect()->route('dashboard');
     }
     return redirect()->route('login');
 });
 
 // ─────────────────────────────────────────────
-// Dashboard (Admin summary)
+// Dashboard
 // ─────────────────────────────────────────────
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
@@ -36,14 +35,6 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // ── Shift Management ──
-    Route::prefix('shift')->name('shift.')->group(function () {
-        Route::get('/',                       [ShiftController::class, 'index'])->name('index');
-        Route::post('/open',                  [ShiftController::class, 'open'])->name('open');
-        Route::post('/{shift}/close',         [ShiftController::class, 'close'])->name('close');
-        Route::get('/{shift}',                [ShiftController::class, 'show'])->name('show');
-    });
-
     // ── POS (Kasir) ──
     Route::prefix('pos')->name('pos.')->group(function () {
         Route::get('/',                       [POSController::class, 'index'])->name('index');
@@ -51,6 +42,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/transaction/{transaction}', [POSController::class, 'getTransaction'])->name('transaction');
         Route::get('/low-stock',              [POSController::class, 'lowStockAlert'])->name('low-stock');
     });
+
+    // ── Laporan Keuangan ──
+    Route::get('/report', [ReportController::class, 'index'])->name('report.index');
+    Route::get('/report/export', [ReportController::class, 'exportExcel'])->name('report.export');
 
     // ── Inventory ──
     Route::prefix('inventory')->name('inventory.')->group(function () {
@@ -67,6 +62,14 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/products/{product}',             [InventoryController::class, 'updateProduct'])->name('products.update');
         Route::delete('/products/{product}',          [InventoryController::class, 'destroyProduct'])->name('products.destroy');
         Route::patch('/products/{product}/toggle',    [InventoryController::class, 'toggleProduct'])->name('products.toggle');
+    });
+
+    // ── Pengaturan ──
+    Route::prefix('setting')->name('setting.')->group(function () {
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });
 });
 

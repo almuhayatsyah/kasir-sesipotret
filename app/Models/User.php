@@ -10,10 +10,6 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
-    /**
-     * Single-role system: tidak ada role hierarchy.
-     * Semua user yang login bisa akses POS + Inventori + Shift.
-     */
     protected $fillable = [
         'name',
         'email',
@@ -34,18 +30,10 @@ class User extends Authenticatable
     }
 
     /**
-     * Semua shift milik user ini.
+     * Semua transaksi milik user ini.
      */
-    public function shifts()
+    public function transactions()
     {
-        return $this->hasMany(Shift::class);
-    }
-
-    /**
-     * Shift yang sedang aktif (status open) milik user ini.
-     */
-    public function activeShift()
-    {
-        return $this->hasOne(Shift::class)->where('status', 'open')->latest();
+        return $this->hasMany(Transaction::class);
     }
 }

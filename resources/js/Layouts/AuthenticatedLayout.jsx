@@ -16,6 +16,13 @@ const Icon = {
             <path d="M16 10a4 4 0 01-8 0" />
         </svg>
     ),
+    report: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+            <line x1="18" y1="20" x2="18" y2="10" />
+            <line x1="12" y1="20" x2="12" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="14" />
+        </svg>
+    ),
     shift: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
             <circle cx="12" cy="12" r="10" />
@@ -32,6 +39,14 @@ const Icon = {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
             <path d="M8 12h8M12 8v8" />
+        </svg>
+    ),
+    users: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
         </svg>
     ),
     logout: (
@@ -64,15 +79,15 @@ function NavItem({ href, icon, label, active, collapsed, badge }) {
             href={href}
             className={`
                 flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm
-                transition-all duration-150 group relative
+                transition-all duration-200 group relative
                 ${active
-                    ? 'bg-indigo-500 text-white shadow-md shadow-indigo-200'
-                    : 'text-slate-400 hover:bg-slate-700/60 hover:text-white'
+                    ? 'bg-brand-teal text-white shadow-md shadow-brand-teal/20'
+                    : 'text-brand-sand/60 hover:bg-brand-teal/20 hover:text-white'
                 }
             `}
             title={collapsed ? label : undefined}
         >
-            <span className={`shrink-0 ${active ? 'text-white' : 'text-slate-400 group-hover:text-white'}`}>
+            <span className={`shrink-0 ${active ? 'text-white' : 'text-brand-sand/60 group-hover:text-white'}`}>
                 {icon}
             </span>
             {!collapsed && (
@@ -81,7 +96,7 @@ function NavItem({ href, icon, label, active, collapsed, badge }) {
             {badge > 0 && (
                 <span className={`
                     ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0
-                    ${active ? 'bg-white/25 text-white' : 'bg-rose-500 text-white'}
+                    ${active ? 'bg-white/25 text-white' : 'bg-brand-coral text-white'}
                     ${collapsed ? 'absolute -top-1 -right-1' : ''}
                 `}>
                     {badge}
@@ -89,8 +104,8 @@ function NavItem({ href, icon, label, active, collapsed, badge }) {
             )}
             {/* Tooltip saat collapsed */}
             {collapsed && (
-                <span className="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg
-                    whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition z-50 shadow-xl">
+                <span className="absolute left-full ml-3 px-2 py-1 bg-brand-navy text-brand-sand text-xs rounded-lg
+                    whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition z-50 shadow-xl border border-brand-teal/20">
                     {label}
                 </span>
             )}
@@ -100,9 +115,9 @@ function NavItem({ href, icon, label, active, collapsed, badge }) {
 
 // ── Nav Section label ────────────────────────────────────
 function NavSection({ label, collapsed }) {
-    if (collapsed) return <div className="h-px bg-slate-700/50 my-2 mx-2" />;
+    if (collapsed) return <div className="h-px bg-white/5 my-2 mx-2" />;
     return (
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 px-3 mt-5 mb-1.5">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-sand/40 px-3 mt-5 mb-1.5">
             {label}
         </p>
     );
@@ -126,14 +141,14 @@ export default function AuthenticatedLayout({ header, children }) {
         <div className="flex flex-col h-full">
 
             {/* Logo / Brand */}
-            <div className={`flex items-center gap-3 px-4 py-5 ${collapsed ? 'justify-center' : ''}`}>
-                <div className="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/30">
-                    <span className="text-white text-lg">☕</span>
+            <div className={`flex items-center gap-3 px-4 py-6 ${collapsed ? 'justify-center' : ''}`}>
+                <div className={`flex items-center justify-center shrink-0 transition-all duration-300 ${collapsed ? 'w-12 h-12' : 'w-16 h-16'}`}>
+                    <img src="/logo.png" alt="Logo" className="w-full h-full object-contain drop-shadow-lg" />
                 </div>
                 {!collapsed && (
-                    <div>
-                        <p className="text-white font-bold text-sm leading-tight">Kasir Sesi</p>
-                        <p className="text-indigo-300 text-xs">Potret Coffee</p>
+                    <div className="flex flex-col justify-center">
+                        <p className="text-white font-serif font-bold text-lg leading-tight">Kasir Sesi</p>
+                        <p className="text-brand-gold text-[11px] font-semibold tracking-wider mt-0.5 uppercase">Potret Coffee</p>
                     </div>
                 )}
             </div>
@@ -144,24 +159,27 @@ export default function AuthenticatedLayout({ header, children }) {
                 <NavSection label="Utama" collapsed={collapsed} />
                 <NavItem href={route('dashboard')}         icon={Icon.dashboard}  label="Dashboard"  active={cur('dashboard')}              collapsed={collapsed} />
                 <NavItem href={route('pos.index')}         icon={Icon.pos}        label="Kasir POS"  active={cur('pos.index')}              collapsed={collapsed} />
-                <NavItem href={route('shift.index')}       icon={Icon.shift}      label="Manajemen Shift" active={cur('shift.index') || cur('shift.show')} collapsed={collapsed} />
+                <NavItem href={route('report.index')}      icon={Icon.report}     label="Laporan"    active={cur('report.index')}           collapsed={collapsed} />
 
                 <NavSection label="Inventori" collapsed={collapsed} />
                 <NavItem href={route('inventory.ingredients')} icon={Icon.ingredient} label="Bahan Baku"  active={cur('inventory.ingredients')} collapsed={collapsed} />
                 <NavItem href={route('inventory.products')}   icon={Icon.product}    label="Menu Produk" active={cur('inventory.products')}    collapsed={collapsed} />
 
+                <NavSection label="Pengaturan" collapsed={collapsed} />
+                <NavItem href={route('setting.users.index')} icon={Icon.users} label="Manajemen User" active={cur('setting.users.index')} collapsed={collapsed} />
+
             </nav>
 
             {/* User info + Logout */}
-            <div className={`border-t border-slate-700/50 p-3 space-y-1 ${collapsed ? 'items-center flex flex-col' : ''}`}>
+            <div className={`border-t border-white/10 p-3 space-y-1 ${collapsed ? 'items-center flex flex-col' : ''}`}>
                 {!collapsed && (
-                    <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-slate-700/40 mb-2">
-                        <div className="w-7 h-7 rounded-full bg-indigo-400 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                    <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-white/5 mb-2 border border-white/5">
+                        <div className="w-7 h-7 rounded-full bg-brand-teal flex items-center justify-center text-white text-xs font-bold shrink-0">
                             {user?.name?.charAt(0) ?? 'U'}
                         </div>
                         <div className="min-w-0">
                             <p className="text-white text-xs font-semibold truncate">{user?.name}</p>
-                            <p className="text-slate-400 text-[10px] truncate">{user?.email}</p>
+                            <p className="text-brand-sand/60 text-[10px] truncate">{user?.email}</p>
                         </div>
                     </div>
                 )}
@@ -169,8 +187,8 @@ export default function AuthenticatedLayout({ header, children }) {
                     onClick={handleLogout}
                     className={`
                         flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium
-                        text-slate-400 hover:bg-rose-500/20 hover:text-rose-400
-                        transition-all duration-150 group relative
+                        text-brand-sand/60 hover:bg-brand-coral/20 hover:text-brand-coral
+                        transition-all duration-200 group relative
                         ${collapsed ? 'justify-center' : ''}
                     `}
                     title={collapsed ? 'Keluar' : undefined}
@@ -178,7 +196,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     {Icon.logout}
                     {!collapsed && <span>Keluar</span>}
                     {collapsed && (
-                        <span className="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg
+                        <span className="absolute left-full ml-3 px-2 py-1 bg-brand-navy text-white text-xs rounded-lg border border-brand-coral/30
                             whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition z-50 shadow-xl">
                             Keluar
                         </span>
@@ -188,8 +206,8 @@ export default function AuthenticatedLayout({ header, children }) {
                 {/* Collapse toggle */}
                 <button
                     onClick={() => setCollapsed(c => !c)}
-                    className="hidden lg:flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs text-slate-500
-                        hover:bg-slate-700/40 hover:text-slate-300 transition justify-center"
+                    className="hidden lg:flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs text-brand-sand/40
+                        hover:bg-white/5 hover:text-brand-sand transition justify-center"
                 >
                     <svg
                         viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
@@ -204,13 +222,13 @@ export default function AuthenticatedLayout({ header, children }) {
     );
 
     return (
-        <div className="min-h-screen bg-slate-50 flex">
+        <div className="min-h-screen bg-brand-sand flex font-sans">
 
             {/* ── Sidebar Desktop ── */}
             <aside className={`
-                hidden lg:flex flex-col shrink-0
-                bg-slate-800 transition-all duration-300 ease-in-out
-                ${collapsed ? 'w-[68px]' : 'w-60'}
+                hidden lg:flex flex-col shrink-0 sticky top-0 h-screen
+                bg-brand-navy transition-all duration-300 ease-in-out print:hidden
+                ${collapsed ? 'w-[72px]' : 'w-64'}
             `}>
                 {sidebarContent}
             </aside>
@@ -218,13 +236,13 @@ export default function AuthenticatedLayout({ header, children }) {
             {/* ── Sidebar Mobile overlay ── */}
             {mobileOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                    className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm z-40 lg:hidden"
                     onClick={() => setMobileOpen(false)}
                 />
             )}
             <aside className={`
-                fixed top-0 left-0 h-full w-60 bg-slate-800 z-50 flex flex-col
-                lg:hidden transition-transform duration-300 ease-in-out
+                fixed top-0 left-0 h-full w-64 bg-brand-navy z-50 flex flex-col
+                lg:hidden transition-transform duration-300 ease-in-out shadow-2xl
                 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
                 {sidebarContent}
@@ -234,12 +252,12 @@ export default function AuthenticatedLayout({ header, children }) {
             <div className="flex-1 flex flex-col min-w-0">
 
                 {/* Top bar */}
-                <header className="sticky top-0 z-30 bg-white border-b border-slate-100 shadow-sm">
-                    <div className="flex items-center h-14 px-4 gap-3">
+                <header className="sticky top-0 z-30 bg-brand-sand/80 backdrop-blur-md border-b border-brand-navy/5 shadow-sm print:hidden">
+                    <div className="flex items-center h-16 px-4 lg:px-8 gap-3">
                         {/* Hamburger mobile */}
                         <button
                             onClick={() => setMobileOpen(o => !o)}
-                            className="lg:hidden p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition"
+                            className="lg:hidden p-2 rounded-xl text-brand-navy hover:bg-brand-navy/5 transition"
                         >
                             {Icon.menu}
                         </button>
@@ -247,18 +265,18 @@ export default function AuthenticatedLayout({ header, children }) {
                         {/* Page title / header slot */}
                         <div className="flex-1 min-w-0">
                             {header ? (
-                                <div className="text-slate-800">{header}</div>
+                                <div className="text-brand-navy">{header}</div>
                             ) : (
-                                <p className="font-semibold text-slate-700">Kasir Sesi Potret</p>
+                                <p className="font-serif font-semibold text-brand-navy text-lg">Kasir Sesi Potret</p>
                             )}
                         </div>
 
                         {/* User chip (desktop) */}
-                        <div className="hidden sm:flex items-center gap-2 text-sm text-slate-600">
-                            <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                        <div className="hidden sm:flex items-center gap-2.5 text-sm text-brand-navy">
+                            <div className="w-8 h-8 rounded-full bg-brand-teal/15 flex items-center justify-center text-brand-teal font-bold text-xs ring-1 ring-brand-teal/20">
                                 {user?.name?.charAt(0) ?? 'U'}
                             </div>
-                            <span className="font-medium">{user?.name}</span>
+                            <span className="font-semibold">{user?.name}</span>
                         </div>
                     </div>
                 </header>

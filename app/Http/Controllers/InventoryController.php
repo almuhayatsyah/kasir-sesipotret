@@ -90,6 +90,7 @@ class InventoryController extends Controller
     {
         $validated = $request->validate([
             'name'      => 'required|string|max:100',
+            'category'  => 'required|in:coffee,non-coffee,makanan',
             'price'     => 'required|integer|min:0',
             'is_active' => 'boolean',
             'recipes'   => 'array',
@@ -99,6 +100,7 @@ class InventoryController extends Controller
 
         $product = Product::create([
             'name'      => $validated['name'],
+            'category'  => $validated['category'],
             'price'     => $validated['price'],
             'is_active' => $validated['is_active'] ?? true,
         ]);
@@ -118,6 +120,7 @@ class InventoryController extends Controller
     {
         $validated = $request->validate([
             'name'      => 'required|string|max:100',
+            'category'  => 'required|in:coffee,non-coffee,makanan',
             'price'     => 'required|integer|min:0',
             'is_active' => 'boolean',
             'recipes'   => 'array',
@@ -127,6 +130,7 @@ class InventoryController extends Controller
 
         $product->update([
             'name'      => $validated['name'],
+            'category'  => $validated['category'],
             'price'     => $validated['price'],
             'is_active' => $validated['is_active'] ?? $product->is_active,
         ]);

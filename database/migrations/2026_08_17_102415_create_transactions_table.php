@@ -13,14 +13,14 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('shift_id')->constrained('shifts')->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->string('invoice_number')->unique();
             $table->enum('order_type', ['dine-in', 'takeaway'])->default('dine-in');
-            $table->string('table_number')->nullable(); // Nomor meja (opsional)
+            $table->string('table_number')->nullable();
             $table->enum('payment_method', ['cash', 'qris'])->default('cash');
-            $table->integer('total_amount');    // Total sebelum bayar
-            $table->integer('amount_paid');     // Uang yang dibayar
-            $table->integer('change')->default(0); // Kembalian
+            $table->integer('total_amount');
+            $table->integer('amount_paid');
+            $table->integer('change')->default(0);
             $table->timestamps();
         });
     }

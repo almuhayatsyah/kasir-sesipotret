@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Ingredient;
 use App\Models\Product;
-use App\Models\Shift;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use Carbon\Carbon;
@@ -16,14 +15,7 @@ class DashboardController extends Controller
 {
     public function index(): Response
     {
-        $today     = Carbon::today();
-        $todayEnd  = Carbon::now();
-        $user      = auth()->user();
-
-        // ── Shift aktif ─────────────────────────────────
-        $activeShift = Shift::where('user_id', $user->id)
-            ->where('status', 'open')
-            ->first();
+        $today = Carbon::today();
 
         // ── Transaksi hari ini ───────────────────────────
         $todayTransactions = Transaction::whereDate('created_at', $today)->get();
@@ -35,7 +27,7 @@ class DashboardController extends Controller
         $dineInCount     = $todayTransactions->where('order_type', 'dine-in')->count();
         $takeawayCount   = $todayTransactions->where('order_type', 'takeaway')->count();
 
-        // ── Grafik penjualan per jam (00:00 - sekarang) ──
+        // ── Grafik penjualan per jam ──────────────────────
         $salesPerHour = Transaction::whereDate('created_at', $today)
             ->select(
                 DB::raw('HOUR(created_at) as hour'),
@@ -47,7 +39,6 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('hour');
 
-        // Isi jam yang kosong dengan 0 supaya grafik tidak putus
         $hourlyChart = [];
         for ($h = 0; $h <= 23; $h++) {
             $hourlyChart[] = [
@@ -76,17 +67,7 @@ class DashboardController extends Controller
             ->orderBy('stock')
             ->get();
 
-        // ── Shift 7 hari terakhir ─────────────────────────
-        $recentShifts = Shift::where('user_id', $user->id)
-            ->where('status', 'closed')
-            ->latest('end_time')
-            ->take(5)
-            ->withCount('transactions')
-            ->withSum('transactions as total_revenue', 'total_amount')
-            ->get();
-
         return Inertia::render('Dashboard', [
-            'activeShift'  => $activeShift,
             'stats' => [
                 'total_revenue'  => $totalRevenue,
                 'total_trx'      => $totalTrx,
@@ -98,7 +79,6 @@ class DashboardController extends Controller
             'hourlyChart'  => $hourlyChart,
             'topProducts'  => $topProducts,
             'lowStockItems'=> $lowStockItems,
-            'recentShifts' => $recentShifts,
         ]);
     }
 }

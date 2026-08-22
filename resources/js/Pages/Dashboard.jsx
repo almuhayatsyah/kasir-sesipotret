@@ -18,12 +18,12 @@ const formatRupiahShort = (v) => {
 // ── Stat Card ────────────────────────────────────────────
 function StatCard({ label, value, sub, icon, color }) {
     const colors = {
-        indigo:  'from-indigo-500 to-indigo-600',
-        emerald: 'from-emerald-500 to-emerald-600',
-        sky:     'from-sky-500 to-sky-600',
-        violet:  'from-violet-500 to-violet-600',
-        amber:   'from-amber-400 to-amber-500',
-        rose:    'from-rose-500 to-rose-600',
+        indigo:  'from-brand-teal to-brand-navy',
+        emerald: 'from-brand-navy to-brand-navy/80',
+        sky:     'from-brand-teal/80 to-brand-teal',
+        violet:  'from-brand-gold to-brand-gold/80',
+        amber:   'from-brand-gold/80 to-brand-gold',
+        rose:    'from-brand-coral to-brand-coral/80',
     };
     return (
         <div className={`bg-gradient-to-br ${colors[color] ?? colors.indigo} rounded-2xl p-5 text-white shadow-lg`}>
@@ -39,7 +39,7 @@ function StatCard({ label, value, sub, icon, color }) {
     );
 }
 
-// ── Custom Tooltip untuk chart ───────────────────────────
+// ── Custom Tooltip ───────────────────────────────────────
 function ChartTooltip({ active, payload, label }) {
     if (!active || !payload?.length) return null;
     return (
@@ -55,7 +55,7 @@ function ChartTooltip({ active, payload, label }) {
 }
 
 // ── MAIN DASHBOARD ───────────────────────────────────────
-export default function Dashboard({ stats = {}, hourlyChart = [], topProducts = [], lowStockItems = [], recentShifts = [], activeShift = null, flash = {} }) {
+export default function Dashboard({ stats = {}, hourlyChart = [], topProducts = [], lowStockItems = [], flash = {} }) {
     const {
         total_revenue  = 0,
         total_trx      = 0,
@@ -66,16 +66,14 @@ export default function Dashboard({ stats = {}, hourlyChart = [], topProducts = 
     } = stats;
 
     const hasLowStock = lowStockItems?.length > 0;
-
-    // Filter jam yang relevan untuk chart (hanya sampai jam sekarang)
     const currentHour = new Date().getHours();
     const chartData   = hourlyChart?.slice(0, currentHour + 1) ?? [];
 
     return (
         <AuthenticatedLayout header={
             <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-xl text-gray-800">Dashboard</h2>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <h2 className="font-serif font-semibold text-2xl text-brand-navy">Dashboard</h2>
+                <div className="flex items-center gap-2 text-sm text-brand-navy/60">
                     📅 {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </div>
             </div>
@@ -93,40 +91,24 @@ export default function Dashboard({ stats = {}, hourlyChart = [], topProducts = 
 
                 {/* ── Alert Stok Kritis ── */}
                 {hasLowStock && (
-                    <div className="bg-rose-50 border border-rose-200 rounded-2xl px-5 py-4 flex items-start gap-3">
-                        <span className="text-rose-500 text-xl">⚠️</span>
+                    <div className="bg-brand-coral/10 border border-brand-coral/20 rounded-2xl px-5 py-4 flex items-start gap-3">
+                        <span className="text-brand-coral text-xl">⚠️</span>
                         <div>
-                            <p className="font-semibold text-rose-700 text-sm">
+                            <p className="font-semibold text-brand-coral text-sm">
                                 {lowStockItems.length} bahan baku hampir habis!
                             </p>
-                            <p className="text-rose-600 text-xs mt-0.5">
+                            <p className="text-brand-coral/80 text-xs mt-0.5">
                                 {lowStockItems.map(i => `${i.name} (${i.stock} ${i.unit})`).join(', ')}
                             </p>
                         </div>
                         <Link
                             href={route('inventory.ingredients')}
-                            className="ml-auto text-xs bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded-lg font-medium transition shrink-0"
+                            className="ml-auto text-xs bg-brand-coral hover:bg-brand-coral/90 text-white px-3 py-1.5 rounded-lg font-medium transition shrink-0"
                         >
                             Restok →
                         </Link>
                     </div>
                 )}
-
-                {/* ── Status Shift ── */}
-                <div className={`rounded-2xl px-6 py-4 flex items-center justify-between ${activeShift ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                    <div>
-                        <p className="text-sm opacity-80">Status Shift Saat Ini</p>
-                        <p className="font-bold text-lg mt-0.5">
-                            {activeShift ? `🟢 Shift #${activeShift.id} Aktif` : '🔴 Tidak Ada Shift Aktif'}
-                        </p>
-                    </div>
-                    <Link
-                        href={activeShift ? route('pos.index') : route('shift.index')}
-                        className={`text-sm font-semibold px-4 py-2 rounded-xl transition ${activeShift ? 'bg-white text-emerald-600 hover:bg-emerald-50' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
-                    >
-                        {activeShift ? '☕ Buka POS' : '☀️ Buka Shift'}
-                    </Link>
-                </div>
 
                 {/* ── Stat Cards ── */}
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -148,13 +130,13 @@ export default function Dashboard({ stats = {}, hourlyChart = [], topProducts = 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
 
                     {/* Area Chart — Penjualan per jam */}
-                    <div className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                    <div className="xl:col-span-2 bg-white rounded-2xl border border-brand-navy/5 shadow-sm p-5">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold text-gray-800">📈 Penjualan Per Jam</h3>
-                            <span className="text-xs text-gray-400">Hari ini</span>
+                            <h3 className="font-semibold text-brand-navy">📈 Penjualan Per Jam</h3>
+                            <span className="text-xs text-brand-navy/50">Hari ini</span>
                         </div>
                         {chartData.length === 0 || chartData.every(d => d.total === 0) ? (
-                            <div className="h-48 flex items-center justify-center text-gray-300">
+                            <div className="h-48 flex items-center justify-center text-brand-navy/30">
                                 <div className="text-center">
                                     <p className="text-4xl mb-2">📊</p>
                                     <p className="text-sm">Belum ada transaksi hari ini</p>
@@ -165,17 +147,17 @@ export default function Dashboard({ stats = {}, hourlyChart = [], topProducts = 
                                 <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                                     <defs>
                                         <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#1FA9A0" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#1FA9A0" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                                    <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
-                                    <YAxis tickFormatter={formatRupiahShort} tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={55} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#FBF3E2" />
+                                    <XAxis dataKey="hour" tick={{ fontSize: 11, fill: '#0E3B4D', opacity: 0.6 }} tickLine={false} axisLine={false} />
+                                    <YAxis tickFormatter={formatRupiahShort} tick={{ fontSize: 11, fill: '#0E3B4D', opacity: 0.6 }} tickLine={false} axisLine={false} width={55} />
                                     <Tooltip content={<ChartTooltip />} />
                                     <Area
                                         type="monotone" dataKey="total" name="Pendapatan"
-                                        stroke="#6366f1" strokeWidth={2.5}
+                                        stroke="#1FA9A0" strokeWidth={2.5}
                                         fill="url(#colorRevenue)" dot={false} activeDot={{ r: 5 }}
                                     />
                                 </AreaChart>
@@ -184,13 +166,13 @@ export default function Dashboard({ stats = {}, hourlyChart = [], topProducts = 
                     </div>
 
                     {/* Top Products Bar Chart */}
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                    <div className="bg-white rounded-2xl border border-brand-navy/5 shadow-sm p-5">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold text-gray-800">🏆 Menu Terlaris</h3>
-                            <span className="text-xs text-gray-400">Hari ini</span>
+                            <h3 className="font-semibold text-brand-navy">🏆 Menu Terlaris</h3>
+                            <span className="text-xs text-brand-navy/50">Hari ini</span>
                         </div>
                         {!topProducts?.length ? (
-                            <div className="h-48 flex items-center justify-center text-gray-300">
+                            <div className="h-48 flex items-center justify-center text-brand-navy/30">
                                 <div className="text-center">
                                     <p className="text-4xl mb-2">🍵</p>
                                     <p className="text-sm">Belum ada penjualan</p>
@@ -199,117 +181,65 @@ export default function Dashboard({ stats = {}, hourlyChart = [], topProducts = 
                         ) : (
                             <ResponsiveContainer width="100%" height={200}>
                                 <BarChart data={topProducts} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                                    <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
-                                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={80} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#FBF3E2" horizontal={false} />
+                                    <XAxis type="number" tick={{ fontSize: 11, fill: '#0E3B4D', opacity: 0.6 }} tickLine={false} axisLine={false} />
+                                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#0E3B4D' }} tickLine={false} axisLine={false} width={80} />
                                     <Tooltip formatter={(v, n) => n === 'total_qty' ? [v + ' pcs', 'Terjual'] : [formatRupiah(v), 'Revenue']} />
-                                    <Bar dataKey="total_qty" name="Terjual" fill="#6366f1" radius={[0, 6, 6, 0]} />
+                                    <Bar dataKey="total_qty" name="Terjual" fill="#1FA9A0" radius={[0, 6, 6, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         )}
                     </div>
                 </div>
 
-                {/* ── Bottom Row ── */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-
-                    {/* Stok Kritis */}
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-                            <h3 className="font-semibold text-gray-800">📦 Status Stok Bahan Baku</h3>
-                            <Link href={route('inventory.ingredients')} className="text-xs text-indigo-600 hover:text-indigo-800 transition">
-                                Kelola →
-                            </Link>
+                {/* ── Bottom Row: Stok Kritis ── */}
+                <div className="bg-white rounded-2xl border border-brand-navy/5 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-brand-navy/5 flex items-center justify-between">
+                        <h3 className="font-semibold text-brand-navy">📦 Status Stok Bahan Baku</h3>
+                        <Link href={route('inventory.ingredients')} className="text-xs text-brand-teal hover:text-brand-teal/80 transition">
+                            Kelola →
+                        </Link>
+                    </div>
+                    {!lowStockItems?.length ? (
+                        <div className="px-5 py-8 text-center text-brand-navy/40">
+                            <p className="text-3xl mb-2">✅</p>
+                            <p className="text-sm font-medium">Semua stok aman</p>
                         </div>
-                        {!lowStockItems?.length ? (
-                            <div className="px-5 py-8 text-center text-gray-400">
-                                <p className="text-3xl mb-2">✅</p>
-                                <p className="text-sm font-medium">Semua stok aman</p>
-                            </div>
-                        ) : (
-                            <div className="divide-y divide-gray-50">
-                                {lowStockItems.map((item) => {
-                                    const pct = Math.min(100, Math.round((item.stock / (item.min_alert_stock || 1)) * 100));
-                                    return (
-                                        <div key={item.id} className="flex items-center gap-4 px-5 py-3">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full bg-rose-400 rounded-full transition-all"
-                                                            style={{ width: `${pct}%` }}
-                                                        />
-                                                    </div>
-                                                    <span className="text-xs text-gray-400">{pct}%</span>
+                    ) : (
+                        <div className="divide-y divide-gray-50">
+                            {lowStockItems.map((item) => {
+                                const pct = Math.min(100, Math.round((item.stock / (item.min_alert_stock || 1)) * 100));
+                                return (
+                                    <div key={item.id} className="flex items-center gap-4 px-5 py-3">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-brand-navy truncate">{item.name}</p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <div className="flex-1 h-1.5 bg-brand-navy/5 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-brand-coral rounded-full transition-all"
+                                                        style={{ width: `${pct}%` }}
+                                                    />
                                                 </div>
-                                            </div>
-                                            <div className="text-right shrink-0">
-                                                <p className="text-sm font-bold text-rose-500">{item.stock}</p>
-                                                <p className="text-xs text-gray-400">{item.unit}</p>
+                                                <span className="text-xs text-brand-navy/40">{pct}%</span>
                                             </div>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Riwayat Shift Terakhir */}
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-                            <h3 className="font-semibold text-gray-800">🕐 Riwayat Shift</h3>
-                            <Link href={route('shift.index')} className="text-xs text-indigo-600 hover:text-indigo-800 transition">
-                                Lihat semua →
-                            </Link>
+                                        <div className="text-right shrink-0">
+                                            <p className="text-sm font-bold text-brand-coral">{item.stock}</p>
+                                            <p className="text-xs text-brand-navy/40">{item.unit}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
-                        {!recentShifts?.length ? (
-                            <div className="px-5 py-8 text-center text-gray-400">
-                                <p className="text-3xl mb-2">📋</p>
-                                <p className="text-sm">Belum ada riwayat shift</p>
-                            </div>
-                        ) : (
-                            <div className="divide-y divide-gray-50">
-                                {recentShifts.map((shift) => {
-                                    const selisih = (shift.actual_ending_cash ?? 0) - (shift.expected_ending_cash ?? 0);
-                                    const startDate = new Date(shift.start_time).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-                                    const startTime = new Date(shift.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-                                    return (
-                                        <Link
-                                            key={shift.id}
-                                            href={route('shift.show', shift.id)}
-                                            className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition"
-                                        >
-                                            <div>
-                                                <p className="text-sm font-medium text-gray-800">
-                                                    Shift #{shift.id} — {startDate} {startTime}
-                                                </p>
-                                                <p className="text-xs text-gray-400 mt-0.5">
-                                                    {shift.transactions_count ?? 0} transaksi
-                                                </p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-sm font-semibold text-gray-800">
-                                                    {formatRupiah(shift.total_revenue ?? 0)}
-                                                </p>
-                                                <p className={`text-xs font-medium ${selisih >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                    {selisih >= 0 ? '+' : ''}{formatRupiah(selisih)}
-                                                </p>
-                                            </div>
-                                        </Link>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
+                    )}
                 </div>
 
                 {/* ── Quick Links ── */}
                 <div className="grid grid-cols-3 gap-3">
                     {[
-                        { href: route('pos.index'),                label: 'Buka POS',           icon: '☕', color: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' },
-                        { href: route('inventory.ingredients'),    label: 'Bahan Baku',         icon: '📦', color: 'bg-amber-50 text-amber-700 hover:bg-amber-100' },
-                        { href: route('inventory.products'),       label: 'Menu Produk',        icon: '🍵', color: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+                        { href: route('pos.index'),             label: 'Buka POS',    icon: '☕', color: 'bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20' },
+                        { href: route('inventory.ingredients'), label: 'Bahan Baku',  icon: '📦', color: 'bg-brand-gold/10 text-brand-gold hover:bg-brand-gold/20' },
+                        { href: route('inventory.products'),    label: 'Menu Produk', icon: '🍵', color: 'bg-brand-navy/10 text-brand-navy hover:bg-brand-navy/20' },
                     ].map((link) => (
                         <Link
                             key={link.href}

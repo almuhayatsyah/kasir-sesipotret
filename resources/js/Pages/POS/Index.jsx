@@ -1,13 +1,14 @@
-import { Head, router } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { useState, useCallback } from 'react';
 import axios from 'axios';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 // ─── Helpers ──────────────────────────────────────────
 const formatRupiah = (amount) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount ?? 0);
 
-// ─── Receipt Printer (ESC/POS via Window.print fallback) ─
-const printReceipt = (transaction, shift) => {
+// ─── Receipt Printer (Window.print fallback) ──────────
+const printReceipt = (transaction) => {
     const lines = [
         '================================',
         '      KASIR SESI POTRET         ',
@@ -16,7 +17,6 @@ const printReceipt = (transaction, shift) => {
         `No: ${transaction.invoice_number}`,
         `Tipe: ${transaction.order_type === 'dine-in' ? 'Dine-in' : 'Takeaway'}`,
         transaction.table_number ? `Meja: ${transaction.table_number}` : '',
-        `Kasir: ${shift?.user?.name ?? 'Kasir'}`,
         new Date().toLocaleString('id-ID'),
         '--------------------------------',
         ...transaction.details.map(
@@ -55,12 +55,12 @@ function CartItem({ item, onQtyChange, onRemove }) {
                 <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
                 <button
                     onClick={() => onQtyChange(item.product_id, item.quantity + 1)}
-                    className="w-7 h-7 rounded-lg bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center text-indigo-600 transition"
+                    className="w-7 h-7 rounded-lg bg-brand-teal/15 hover:bg-brand-teal/25 flex items-center justify-center text-brand-teal transition"
                 >+</button>
             </div>
             <div className="text-right min-w-[80px]">
                 <p className="text-sm font-semibold text-gray-800">{formatRupiah(item.subtotal)}</p>
-                <button onClick={() => onRemove(item.product_id)} className="text-xs text-rose-400 hover:text-rose-600 transition">hapus</button>
+                <button onClick={() => onRemove(item.product_id)} className="text-xs text-brand-coral hover:text-brand-coral/80 transition">hapus</button>
             </div>
         </div>
     );
@@ -77,76 +77,63 @@ function PaymentModal({ total, onConfirm, onClose, processing }) {
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-                <div className="bg-indigo-600 px-6 py-5 text-white">
-                    <p className="text-sm opacity-75">Total Pembayaran</p>
-                    <p className="text-3xl font-bold mt-1">{formatRupiah(total)}</p>
+                <div className="bg-gradient-to-br from-brand-teal to-brand-navy px-6 py-5 text-white">
+                    <p className="text-sm opacity-80 font-medium">Total Pembayaran</p>
+                    <p className="text-3xl font-serif font-bold tracking-tight">{formatRupiah(total)}</p>
                 </div>
-
                 <div className="p-6 space-y-4">
-                    {/* Metode bayar */}
-                    <div>
-                        <p className="text-sm font-medium text-gray-700 mb-2">Metode Pembayaran</p>
-                        <div className="grid grid-cols-2 gap-2">
-                            {['cash', 'qris'].map((m) => (
-                                <button
-                                    key={m}
-                                    onClick={() => setMethod(m)}
-                                    className={`py-3 rounded-xl text-sm font-semibold border-2 transition ${
-                                        method === m
-                                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                                            : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                                    }`}
-                                >
-                                    {m === 'cash' ? '💵 Tunai' : '📱 QRIS'}
-                                </button>
-                            ))}
-                        </div>
+                    {/* Payment method */}
+                    <div className="flex gap-2">
+                        {[{ id: 'cash', label: '💵 Tunai' }, { id: 'qris', label: '📱 QRIS' }].map(({ id, label }) => (
+                            <button
+                                key={id}
+                                onClick={() => { setMethod(id); setPaid(''); }}
+                                className={`flex-1 py-3 rounded-xl font-medium transition text-sm ${
+                                    method === id ? 'bg-brand-teal/15 text-brand-teal border-2 border-brand-teal/30' : 'bg-gray-50 text-gray-600 border-2 border-transparent'
+                                }`}
+                            >{label}</button>
+                        ))}
                     </div>
 
-                    {/* Input uang (hanya untuk cash) */}
+                    {/* Cash input */}
                     {method === 'cash' && (
-                        <div>
-                            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Uang yang Dibayar</label>
-                            <div className="relative">
-                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">Rp</span>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-xs text-gray-500 mb-1 block">Uang Diterima</label>
                                 <input
                                     type="number"
                                     value={paid}
                                     onChange={(e) => setPaid(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none text-lg font-semibold"
-                                    placeholder="0"
+                                    placeholder="Masukkan nominal..."
+                                    className="w-full text-xl font-bold text-center py-3 border-2 border-brand-navy/10 rounded-xl focus:border-brand-teal focus:ring-4 focus:ring-brand-teal/20 outline-none transition"
+                                    autoFocus
                                 />
                             </div>
-                            {/* Quick amounts */}
-                            <div className="flex gap-2 mt-2 flex-wrap">
-                                {quickAmounts.map((amt) => (
+                            <div className="flex gap-2 flex-wrap">
+                                {quickAmounts.map((amount) => (
                                     <button
-                                        key={amt}
-                                        onClick={() => setPaid(String(amt))}
-                                        className="text-xs bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 px-3 py-1.5 rounded-lg transition"
+                                        key={amount}
+                                        onClick={() => setPaid(String(amount))}
+                                        className="px-3 py-1.5 bg-gray-100 hover:bg-brand-teal/10 hover:text-brand-teal text-sm rounded-lg font-medium transition"
                                     >
-                                        {formatRupiah(amt)}
+                                        {formatRupiah(amount)}
                                     </button>
                                 ))}
                             </div>
-
                             {Number(paid) >= total && (
-                                <div className="bg-emerald-50 rounded-xl p-3 flex justify-between mt-3">
-                                    <span className="text-sm text-emerald-700">Kembalian</span>
-                                    <span className="text-lg font-bold text-emerald-600">{formatRupiah(change)}</span>
+                                <div className="bg-brand-teal/10 rounded-xl p-3 text-center border border-brand-teal/20">
+                                    <p className="text-xs text-brand-teal font-medium">Kembalian</p>
+                                    <p className="text-2xl font-bold text-brand-teal">{formatRupiah(change)}</p>
                                 </div>
-                            )}
-                            {Number(paid) > 0 && Number(paid) < total && (
-                                <p className="text-rose-500 text-xs mt-2">⚠️ Uang kurang {formatRupiah(total - Number(paid))}</p>
                             )}
                         </div>
                     )}
 
-                    {/* QRIS info */}
                     {method === 'qris' && (
-                        <div className="bg-violet-50 rounded-xl p-4 text-center">
-                            <p className="text-violet-700 text-sm font-medium">📱 Tampilkan QR Code kepada pelanggan</p>
-                            <p className="text-violet-500 text-xs mt-1">Konfirmasi setelah pembayaran berhasil</p>
+                        <div className="bg-gray-50 rounded-xl p-6 text-center">
+                            <p className="text-4xl mb-2">📱</p>
+                            <p className="text-sm text-gray-500">Scan QRIS untuk pembayaran</p>
+                            <p className="text-lg font-bold text-brand-navy mt-1">{formatRupiah(total)}</p>
                         </div>
                     )}
 
@@ -161,7 +148,7 @@ function PaymentModal({ total, onConfirm, onClose, processing }) {
                         <button
                             onClick={() => onConfirm({ method, paid: method === 'qris' ? total : Number(paid) })}
                             disabled={processing || (method === 'cash' && Number(paid) < total)}
-                            className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition disabled:opacity-40"
+                            className="flex-1 py-3 rounded-xl bg-gradient-to-r from-brand-teal to-brand-navy hover:from-brand-teal/90 hover:to-brand-navy/90 text-white font-semibold transition shadow-lg shadow-brand-navy/20 disabled:opacity-40"
                         >
                             {processing ? 'Memproses...' : '✓ Bayar'}
                         </button>
@@ -173,14 +160,15 @@ function PaymentModal({ total, onConfirm, onClose, processing }) {
 }
 
 // ─── Success Modal ────────────────────────────────────
-function SuccessModal({ transaction, shift, onNewTransaction, onPrint }) {
+function SuccessModal({ transaction, onNewTransaction, onPrint }) {
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm text-center overflow-hidden">
-                <div className="bg-emerald-500 px-6 py-8 text-white">
-                    <div className="text-5xl mb-3">✅</div>
-                    <p className="text-xl font-bold">Transaksi Berhasil!</p>
-                    <p className="text-sm opacity-75 mt-1">{transaction.invoice_number}</p>
+                <div className="bg-gradient-to-br from-brand-teal to-brand-navy px-6 py-8 text-white relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                    <div className="text-5xl mb-3 relative z-10">✅</div>
+                    <p className="text-2xl font-serif font-bold relative z-10">Transaksi Berhasil!</p>
+                    <p className="text-sm opacity-80 mt-1 relative z-10">{transaction.invoice_number}</p>
                 </div>
                 <div className="p-6 space-y-3">
                     <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
@@ -195,7 +183,7 @@ function SuccessModal({ transaction, shift, onNewTransaction, onPrint }) {
                         {transaction.change > 0 && (
                             <div className="flex justify-between">
                                 <span className="text-gray-500">Kembalian</span>
-                                <span className="font-bold text-emerald-600 text-lg">{formatRupiah(transaction.change)}</span>
+                                <span className="font-bold text-brand-teal text-lg">{formatRupiah(transaction.change)}</span>
                             </div>
                         )}
                     </div>
@@ -207,7 +195,7 @@ function SuccessModal({ transaction, shift, onNewTransaction, onPrint }) {
                     </button>
                     <button
                         onClick={onNewTransaction}
-                        className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition"
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-brand-teal to-brand-navy hover:from-brand-teal/90 hover:to-brand-navy/90 text-white font-semibold shadow-lg shadow-brand-navy/20 transition"
                     >
                         + Transaksi Baru
                     </button>
@@ -218,7 +206,16 @@ function SuccessModal({ transaction, shift, onNewTransaction, onPrint }) {
 }
 
 // ─── MAIN POS PAGE ────────────────────────────────────
-export default function POSIndex({ shift, products }) {
+const CATEGORIES = [
+    { id: 'all',        label: 'Semua',      icon: '📋' },
+    { id: 'coffee',     label: 'Coffee',     icon: '☕' },
+    { id: 'non-coffee', label: 'Non-Coffee', icon: '🍵' },
+    { id: 'makanan',    label: 'Makanan',    icon: '🍽️' },
+];
+
+const CATEGORY_EMOJI = { coffee: '☕', 'non-coffee': '🍵', makanan: '🍽️' };
+
+export default function POSIndex({ products }) {
     const [cart, setCart]               = useState([]);
     const [orderType, setOrderType]     = useState('dine-in');
     const [tableNumber, setTableNumber] = useState('');
@@ -227,14 +224,17 @@ export default function POSIndex({ shift, products }) {
     const [lastTransaction, setLastTransaction] = useState(null);
     const [processing, setProcessing]   = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [activeCategory, setActiveCategory] = useState('all');
     const [error, setError]             = useState(null);
 
     const totalAmount = cart.reduce((sum, item) => sum + item.subtotal, 0);
     const totalItems  = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-    const filteredProducts = products.filter((p) =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredProducts = products.filter((p) => {
+        const matchSearch   = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchCategory = activeCategory === 'all' || p.category === activeCategory;
+        return matchSearch && matchCategory;
+    });
 
     // Add to cart
     const addToCart = useCallback((product) => {
@@ -309,173 +309,171 @@ export default function POSIndex({ shift, products }) {
     };
 
     return (
-        <>
+        <AuthenticatedLayout header={
+            <h2 className="font-serif font-semibold text-2xl text-brand-navy">☕ Kasir POS</h2>
+        }>
             <Head title="POS Kasir — Kasir Sesi Potret" />
 
-            <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+            <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
 
-                {/* ── TOP BAR ── */}
-                <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-3">
-                        <span className="text-xl font-bold text-indigo-700">☕ Kasir Sesi Potret</span>
-                        <span className="hidden sm:inline text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
-                            Shift #{shift.id} • 🟢 Aktif
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <a
-                            href={route('shift.index')}
-                            className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg transition"
-                        >
-                            Tutup Shift
-                        </a>
-                    </div>
-                </header>
+                {/* ══ LEFT: PRODUCT GRID ══ */}
+                <div className="flex-1 flex flex-col overflow-hidden">
 
-                {/* ── MAIN CONTENT ── */}
-                <div className="flex-1 flex overflow-hidden">
-
-                    {/* ══ LEFT: PRODUCT GRID ══ */}
-                    <div className="flex-1 flex flex-col overflow-hidden">
-
-                        {/* Order type + table + search */}
-                        <div className="bg-white border-b border-gray-100 px-4 py-3 space-y-3">
-                            <div className="flex items-center gap-3">
-                                {/* Order Type */}
-                                <div className="flex rounded-xl overflow-hidden border border-gray-200">
-                                    {['dine-in', 'takeaway'].map((type) => (
-                                        <button
-                                            key={type}
-                                            onClick={() => setOrderType(type)}
-                                            className={`px-4 py-2 text-sm font-medium transition ${
-                                                orderType === type
-                                                    ? 'bg-indigo-600 text-white'
-                                                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                                            }`}
-                                        >
-                                            {type === 'dine-in' ? '🪑 Dine-in' : '🛍️ Takeaway'}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {/* Table number (dine-in only) */}
-                                {orderType === 'dine-in' && (
-                                    <input
-                                        type="text"
-                                        value={tableNumber}
-                                        onChange={(e) => setTableNumber(e.target.value)}
-                                        placeholder="No. Meja (opsional)"
-                                        className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300 w-40"
-                                    />
-                                )}
-
-                                {/* Search */}
-                                <div className="relative flex-1 max-w-xs ml-auto">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder="Cari menu..."
-                                        className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-300"
-                                    />
-                                </div>
+                    {/* Order type + table + search */}
+                    <div className="bg-white border-b border-gray-100 px-4 py-3 space-y-3">
+                        <div className="flex items-center gap-3">
+                            {/* Order Type */}
+                            <div className="flex rounded-xl overflow-hidden border border-gray-200">
+                                {['dine-in', 'takeaway'].map((type) => (
+                                    <button
+                                        key={type}
+                                        onClick={() => setOrderType(type)}
+                                        className={`px-4 py-2 text-sm font-medium transition ${
+                                            orderType === type
+                                                ? 'bg-brand-teal text-white shadow-md shadow-brand-teal/20'
+                                                : 'bg-white text-gray-600 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        {type === 'dine-in' ? '🪑 Dine-in' : '🛍️ Takeaway'}
+                                    </button>
+                                ))}
                             </div>
-                        </div>
 
-                        {/* Product grid */}
-                        <div className="flex-1 overflow-y-auto p-4">
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                                {filteredProducts.map((product) => {
-                                    const inCart = cart.find((i) => i.product_id === product.id);
-                                    return (
-                                        <button
-                                            key={product.id}
-                                            onClick={() => addToCart(product)}
-                                            className={`relative bg-white rounded-2xl p-4 text-left border-2 transition hover:shadow-md active:scale-95 ${
-                                                inCart
-                                                    ? 'border-indigo-400 shadow-indigo-100 shadow-md'
-                                                    : 'border-gray-100 hover:border-indigo-200'
-                                            }`}
-                                        >
-                                            {inCart && (
-                                                <span className="absolute top-2 right-2 w-6 h-6 bg-indigo-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                                                    {inCart.quantity}
-                                                </span>
-                                            )}
-                                            <div className="text-3xl mb-2">☕</div>
-                                            <p className="text-sm font-semibold text-gray-800 leading-tight">{product.name}</p>
-                                            <p className="text-sm text-indigo-600 font-bold mt-1">{formatRupiah(product.price)}</p>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            {filteredProducts.length === 0 && (
-                                <div className="text-center py-16 text-gray-400">
-                                    <p className="text-4xl mb-2">🔍</p>
-                                    <p>Menu tidak ditemukan</p>
-                                </div>
+                            {/* Table number (dine-in only) */}
+                            {orderType === 'dine-in' && (
+                                <input
+                                    type="text"
+                                    value={tableNumber}
+                                    onChange={(e) => setTableNumber(e.target.value)}
+                                    placeholder="No. Meja (opsional)"
+                                    className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal w-40 transition"
+                                />
                             )}
-                        </div>
-                    </div>
 
-                    {/* ══ RIGHT: CART ══ */}
-                    <div className="w-80 xl:w-96 bg-white border-l border-gray-200 flex flex-col shrink-0">
-                        {/* Cart header */}
-                        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                            <h2 className="font-bold text-gray-800">
-                                Pesanan {totalItems > 0 && <span className="text-indigo-600">({totalItems})</span>}
-                            </h2>
-                            {cart.length > 0 && (
+                            {/* Search */}
+                            <div className="relative flex-1 max-w-xs ml-auto">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Cari menu..."
+                                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal transition"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Category Tabs */}
+                        <div className="flex gap-2">
+                            {CATEGORIES.map((cat) => (
                                 <button
-                                    onClick={() => setCart([])}
-                                    className="text-xs text-rose-400 hover:text-rose-600 transition"
+                                    key={cat.id}
+                                    onClick={() => setActiveCategory(cat.id)}
+                                    className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+                                        activeCategory === cat.id
+                                            ? 'bg-brand-teal text-white shadow-md shadow-brand-teal/20'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
                                 >
-                                    Kosongkan
+                                    {cat.icon} {cat.label}
                                 </button>
-                            )}
+                            ))}
                         </div>
+                    </div>
 
-                        {/* Cart items */}
-                        <div className="flex-1 overflow-y-auto px-5 py-2">
-                            {cart.length === 0 ? (
-                                <div className="text-center py-12 text-gray-300">
-                                    <p className="text-4xl mb-2">🛒</p>
-                                    <p className="text-sm">Pilih menu untuk memulai</p>
-                                </div>
-                            ) : (
-                                cart.map((item) => (
-                                    <CartItem
-                                        key={item.product_id}
-                                        item={item}
-                                        onQtyChange={handleQtyChange}
-                                        onRemove={handleRemove}
-                                    />
-                                ))
-                            )}
+                    {/* Product grid */}
+                    <div className="flex-1 overflow-y-auto p-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                            {filteredProducts.map((product) => {
+                                const inCart = cart.find((i) => i.product_id === product.id);
+                                return (
+                                    <button
+                                        key={product.id}
+                                        onClick={() => addToCart(product)}
+                                        className={`relative bg-white rounded-2xl p-4 text-left border-2 transition hover:shadow-md active:scale-95 ${
+                                            inCart
+                                                ? 'border-brand-teal shadow-brand-teal/10 shadow-md'
+                                                : 'border-transparent hover:border-brand-teal/30'
+                                        }`}
+                                    >
+                                        {inCart && (
+                                            <span className="absolute top-2 right-2 w-6 h-6 bg-brand-teal text-white text-xs font-bold rounded-full flex items-center justify-center">
+                                                {inCart.quantity}
+                                            </span>
+                                        )}
+                                        <div className="text-3xl mb-2">{CATEGORY_EMOJI[product.category] ?? '☕'}</div>
+                                        <p className="text-sm font-semibold text-brand-navy leading-tight">{product.name}</p>
+                                        <p className="text-xs text-gray-400 capitalize">{product.category}</p>
+                                        <p className="text-sm text-brand-teal font-bold mt-1">{formatRupiah(product.price)}</p>
+                                    </button>
+                                );
+                            })}
                         </div>
+                        {filteredProducts.length === 0 && (
+                            <div className="text-center py-16 text-gray-400">
+                                <p className="text-4xl mb-2">🔍</p>
+                                <p>Menu tidak ditemukan</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
 
-                        {/* Cart footer */}
-                        <div className="border-t border-gray-100 px-5 py-4 space-y-3 shrink-0">
-                            {error && (
-                                <p className="text-rose-500 text-xs bg-rose-50 rounded-lg px-3 py-2">{error}</p>
-                            )}
-                            <div className="flex justify-between text-sm text-gray-500">
-                                <span>Subtotal ({totalItems} item)</span>
-                                <span className="font-semibold text-gray-800">{formatRupiah(totalAmount)}</span>
-                            </div>
-                            <div className="flex justify-between font-bold text-lg">
-                                <span>Total</span>
-                                <span className="text-indigo-700">{formatRupiah(totalAmount)}</span>
-                            </div>
+                {/* ══ RIGHT: CART ══ */}
+                <div className="w-80 xl:w-96 bg-white border-l border-gray-200 flex flex-col shrink-0">
+                    {/* Cart header */}
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <h2 className="font-bold text-brand-navy">
+                            Pesanan {totalItems > 0 && <span className="text-brand-teal">({totalItems})</span>}
+                        </h2>
+                        {cart.length > 0 && (
                             <button
-                                onClick={() => setShowPayment(true)}
-                                disabled={cart.length === 0}
-                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl transition disabled:opacity-40 disabled:cursor-not-allowed text-lg"
+                                onClick={() => setCart([])}
+                                className="text-xs text-brand-coral hover:text-brand-coral/80 transition"
                             >
-                                Bayar Sekarang →
+                                Kosongkan
                             </button>
+                        )}
+                    </div>
+
+                    {/* Cart items */}
+                    <div className="flex-1 overflow-y-auto px-5 py-2">
+                        {cart.length === 0 ? (
+                            <div className="text-center py-12 text-gray-300">
+                                <p className="text-4xl mb-2">🛒</p>
+                                <p className="text-sm">Pilih menu untuk memulai</p>
+                            </div>
+                        ) : (
+                            cart.map((item) => (
+                                <CartItem
+                                    key={item.product_id}
+                                    item={item}
+                                    onQtyChange={handleQtyChange}
+                                    onRemove={handleRemove}
+                                />
+                            ))
+                        )}
+                    </div>
+
+                    {/* Cart footer */}
+                    <div className="border-t border-gray-100 px-5 py-4 space-y-3 shrink-0">
+                        {error && (
+                            <p className="text-brand-coral text-xs bg-brand-coral/10 rounded-lg px-3 py-2">{error}</p>
+                        )}
+                        <div className="flex justify-between text-sm text-gray-500">
+                            <span>Subtotal ({totalItems} item)</span>
+                            <span className="font-semibold text-gray-800">{formatRupiah(totalAmount)}</span>
                         </div>
+                        <div className="flex justify-between font-bold text-lg">
+                            <span className="text-brand-navy">Total</span>
+                            <span className="text-brand-teal">{formatRupiah(totalAmount)}</span>
+                        </div>
+                        <button
+                            onClick={() => setShowPayment(true)}
+                            disabled={cart.length === 0}
+                            className="w-full bg-gradient-to-r from-brand-teal to-brand-navy hover:from-brand-teal/90 hover:to-brand-navy/90 text-white font-bold py-4 rounded-2xl transition shadow-lg shadow-brand-navy/20 disabled:opacity-40 disabled:cursor-not-allowed text-lg"
+                        >
+                            Bayar Sekarang →
+                        </button>
                     </div>
                 </div>
             </div>
@@ -493,11 +491,10 @@ export default function POSIndex({ shift, products }) {
             {showSuccess && lastTransaction && (
                 <SuccessModal
                     transaction={lastTransaction}
-                    shift={shift}
                     onNewTransaction={handleNewTransaction}
-                    onPrint={() => printReceipt(lastTransaction, shift)}
+                    onPrint={() => printReceipt(lastTransaction)}
                 />
             )}
-        </>
+        </AuthenticatedLayout>
     );
 }

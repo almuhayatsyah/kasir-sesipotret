@@ -8,9 +8,9 @@ class Transaction extends Model
 {
     protected $guarded = ['id'];
 
-    public function shift()
+    public function user()
     {
-        return $this->belongsTo(Shift::class);
+        return $this->belongsTo(User::class);
     }
 
     public function details()
