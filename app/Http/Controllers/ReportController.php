@@ -21,8 +21,8 @@ class ReportController extends Controller
         $startDate = Carbon::parse($startDateInput)->startOfDay();
         $endDate   = Carbon::parse($endDateInput)->endOfDay();
 
-        // 1. Ambil query transaksi dalam rentang tanggal
-        $query = Transaction::whereBetween('created_at', [$startDate, $endDate]);
+        // 1. Ambil query transaksi PAID dalam rentang tanggal (pending tidak dihitung)
+        $query = Transaction::paid()->whereBetween('created_at', [$startDate, $endDate]);
 
         // Ringkasan Finansial
         $totalRevenue  = (int) $query->sum('total_amount');
@@ -35,6 +35,7 @@ class ReportController extends Controller
         // 2. Ringkasan per Produk
         $productSales = TransactionDetail::join('transactions', 'transaction_details.transaction_id', '=', 'transactions.id')
             ->join('products', 'transaction_details.product_id', '=', 'products.id')
+            ->where('transactions.payment_status', 'paid')
             ->whereBetween('transactions.created_at', [$startDate, $endDate])
             ->select(
                 'products.name',
@@ -47,7 +48,8 @@ class ReportController extends Controller
             ->get();
 
         // 3. Riwayat Transaksi Detail
-        $transactions = Transaction::with('user')
+        $transactions = Transaction::paid()
+            ->with('user')
             ->whereBetween('created_at', [$startDate, $endDate])
             ->orderByDesc('created_at')
             ->get();
@@ -78,7 +80,8 @@ class ReportController extends Controller
         $startDate = Carbon::parse($startDateInput)->startOfDay();
         $endDate   = Carbon::parse($endDateInput)->endOfDay();
 
-        $transactions = Transaction::whereBetween('created_at', [$startDate, $endDate])
+        $transactions = Transaction::paid()
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->orderBy('created_at')
             ->get();
 

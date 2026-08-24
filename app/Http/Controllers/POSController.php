@@ -16,7 +16,7 @@ use Inertia\Response;
 class POSController extends Controller
 {
     /**
-     * Tampilkan halaman POS utama — langsung tanpa perlu buka shift.
+     * Tampilkan halaman POS utama.
      */
     public function index(): Response
     {
@@ -25,23 +25,32 @@ class POSController extends Controller
             ->orderBy('name')
             ->get();
 
+        // Ambil pesanan pending hari ini
+        $pendingOrders = Transaction::pending()
+            ->with('details.product')
+            ->whereDate('created_at', today())
+            ->orderByDesc('created_at')
+            ->get();
+
         return Inertia::render('POS/Index', [
-            'products' => $products,
+            'products'      => $products,
+            'pendingOrders' => $pendingOrders,
         ]);
     }
 
     /**
-     * Proses transaksi baru.
-     * Simpan transaksi → simpan detail → AUTO-DEDUCT stok bahan baku.
+     * Proses transaksi baru (bayar sekarang ATAU bayar nanti).
      */
     public function checkout(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'order_type'     => 'required|in:dine-in,takeaway',
-            'table_number'   => 'nullable|string|max:20',
-            'payment_method' => 'required|in:cash,qris',
-            'amount_paid'    => 'required|integer|min:0',
-            'items'          => 'required|array|min:1',
+            'order_type'      => 'required|in:dine-in,takeaway',
+            'table_number'    => 'nullable|string|max:20',
+            'payment_method'  => 'nullable|in:cash,qris',
+            'amount_paid'     => 'nullable|integer|min:0',
+            'payment_status'  => 'required|in:paid,pending',
+            'customer_name'   => 'nullable|string|max:100',
+            'items'           => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity'   => 'required|integer|min:1',
             'items.*.price'      => 'required|integer|min:0',
@@ -49,25 +58,32 @@ class POSController extends Controller
         ]);
 
         $totalAmount = collect($validated['items'])->sum('subtotal');
-        $change      = $validated['amount_paid'] - $totalAmount;
+        $isPending   = $validated['payment_status'] === 'pending';
 
-        // Validasi: uang bayar harus >= total (khusus cash)
-        if ($validated['payment_method'] === 'cash' && $change < 0) {
-            return response()->json(['message' => 'Uang pembayaran kurang dari total.'], 422);
+        // Validasi: jika bayar sekarang (paid), uang bayar harus >= total (khusus cash)
+        if (!$isPending) {
+            $amountPaid = $validated['amount_paid'] ?? 0;
+            $change     = $amountPaid - $totalAmount;
+
+            if ($validated['payment_method'] === 'cash' && $change < 0) {
+                return response()->json(['message' => 'Uang pembayaran kurang dari total.'], 422);
+            }
         }
 
         DB::beginTransaction();
         try {
-            // 1. Buat header transaksi (langsung ke user_id, tanpa shift)
+            // 1. Buat header transaksi
             $transaction = Transaction::create([
                 'user_id'        => auth()->id(),
                 'invoice_number' => $this->generateInvoiceNumber(),
                 'order_type'     => $validated['order_type'],
                 'table_number'   => $validated['table_number'] ?? null,
-                'payment_method' => $validated['payment_method'],
+                'payment_method' => $isPending ? null : $validated['payment_method'],
                 'total_amount'   => $totalAmount,
-                'amount_paid'    => $validated['amount_paid'],
-                'change'         => max(0, $change),
+                'amount_paid'    => $isPending ? 0 : ($validated['amount_paid'] ?? 0),
+                'change'         => $isPending ? 0 : max(0, ($validated['amount_paid'] ?? 0) - $totalAmount),
+                'payment_status' => $validated['payment_status'],
+                'customer_name'  => $validated['customer_name'] ?? null,
             ]);
 
             // 2. Buat detail transaksi
@@ -81,24 +97,107 @@ class POSController extends Controller
                 ]);
             }
 
-            // 3. AUTO-DEDUCT INVENTORY berdasarkan resep
+            // 3. AUTO-DEDUCT INVENTORY (baik paid maupun pending, stok langsung berkurang)
             $this->deductInventory($validated['items']);
 
             DB::commit();
 
-            // Load relasi untuk data struk
             $transaction->load('details.product');
+
+            $message = $isPending
+                ? 'Pesanan tersimpan! Menunggu pembayaran.'
+                : 'Transaksi berhasil!';
 
             return response()->json([
                 'success'     => true,
-                'message'     => 'Transaksi berhasil!',
+                'message'     => $message,
                 'transaction' => $transaction,
-                'change'      => max(0, $change),
+                'change'      => $isPending ? 0 : max(0, ($validated['amount_paid'] ?? 0) - $totalAmount),
             ]);
 
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Ambil daftar pesanan pending (untuk AJAX refresh).
+     */
+    public function pendingOrders(): JsonResponse
+    {
+        $pending = Transaction::pending()
+            ->with('details.product')
+            ->whereDate('created_at', today())
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json($pending);
+    }
+
+    /**
+     * Lunasi pesanan pending → ubah status menjadi 'paid'.
+     */
+    public function settlePayment(Request $request, Transaction $transaction): JsonResponse
+    {
+        if ($transaction->payment_status !== 'pending') {
+            return response()->json(['message' => 'Transaksi ini sudah dibayar.'], 422);
+        }
+
+        $validated = $request->validate([
+            'payment_method' => 'required|in:cash,qris',
+            'amount_paid'    => 'required|integer|min:0',
+        ]);
+
+        $change = $validated['amount_paid'] - $transaction->total_amount;
+
+        if ($validated['payment_method'] === 'cash' && $change < 0) {
+            return response()->json(['message' => 'Uang pembayaran kurang dari total.'], 422);
+        }
+
+        $transaction->update([
+            'payment_method' => $validated['payment_method'],
+            'amount_paid'    => $validated['amount_paid'],
+            'change'         => max(0, $change),
+            'payment_status' => 'paid',
+        ]);
+
+        $transaction->load('details.product');
+
+        return response()->json([
+            'success'     => true,
+            'message'     => 'Pembayaran berhasil!',
+            'transaction' => $transaction,
+            'change'      => max(0, $change),
+        ]);
+    }
+
+    /**
+     * Batalkan pesanan pending → kembalikan stok bahan baku.
+     */
+    public function cancelPending(Transaction $transaction): JsonResponse
+    {
+        if ($transaction->payment_status !== 'pending') {
+            return response()->json(['message' => 'Hanya pesanan pending yang bisa dibatalkan.'], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Kembalikan stok bahan baku
+            $this->restoreInventory($transaction);
+
+            // Hapus transaksi (cascade akan hapus details juga)
+            $transaction->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pesanan berhasil dibatalkan dan stok telah dikembalikan.',
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Gagal membatalkan: ' . $e->getMessage()], 500);
         }
     }
 
@@ -119,6 +218,25 @@ class POSController extends Controller
 
                 Ingredient::where('id', $recipe->ingredient_id)
                     ->decrement('stock', $totalDeduction);
+            }
+        }
+    }
+
+    /**
+     * Kembalikan stok bahan baku saat pesanan pending dibatalkan.
+     */
+    private function restoreInventory(Transaction $transaction): void
+    {
+        $transaction->load('details');
+
+        foreach ($transaction->details as $detail) {
+            $recipes = \App\Models\Recipe::where('product_id', $detail->product_id)->get();
+
+            foreach ($recipes as $recipe) {
+                $totalRestore = $recipe->quantity_needed * $detail->quantity;
+
+                Ingredient::where('id', $recipe->ingredient_id)
+                    ->increment('stock', $totalRestore);
             }
         }
     }

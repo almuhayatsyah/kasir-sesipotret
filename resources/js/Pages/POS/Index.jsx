@@ -7,8 +7,19 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 const formatRupiah = (amount) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount ?? 0);
 
-// ─── Receipt Printer (Window.print fallback) ──────────
+const timeAgo = (dateStr) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Baru saja';
+    if (mins < 60) return `${mins} mnt lalu`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} jam lalu`;
+    return `${Math.floor(hrs / 24)} hari lalu`;
+};
+
+// ─── Receipt Printer ──────────────────────────────────
 const printReceipt = (transaction) => {
+    const isPending = transaction.payment_status === 'pending';
     const lines = [
         '================================',
         '      KASIR SESI POTRET         ',
@@ -17,6 +28,7 @@ const printReceipt = (transaction) => {
         `No: ${transaction.invoice_number}`,
         `Tipe: ${transaction.order_type === 'dine-in' ? 'Dine-in' : 'Takeaway'}`,
         transaction.table_number ? `Meja: ${transaction.table_number}` : '',
+        transaction.customer_name ? `Pelanggan: ${transaction.customer_name}` : '',
         new Date().toLocaleString('id-ID'),
         '--------------------------------',
         ...transaction.details.map(
@@ -24,10 +36,14 @@ const printReceipt = (transaction) => {
         ),
         '--------------------------------',
         `TOTAL   : ${formatRupiah(transaction.total_amount)}`,
-        `BAYAR   : ${formatRupiah(transaction.amount_paid)}`,
-        `KEMBALIAN: ${formatRupiah(transaction.change)}`,
-        '================================',
-        `     ${transaction.payment_method.toUpperCase()}     `,
+        ...(isPending
+            ? ['STATUS  : ** BELUM DIBAYAR **']
+            : [
+                `BAYAR   : ${formatRupiah(transaction.amount_paid)}`,
+                `KEMBALIAN: ${formatRupiah(transaction.change)}`,
+                '================================',
+                `     ${(transaction.payment_method || '').toUpperCase()}     `,
+            ]),
         '================================',
         '   Terima kasih, selamat minum! ',
     ].filter(Boolean).join('\n');
@@ -66,8 +82,8 @@ function CartItem({ item, onQtyChange, onRemove }) {
     );
 }
 
-// ─── Payment Modal ────────────────────────────────────
-function PaymentModal({ total, onConfirm, onClose, processing }) {
+// ─── Payment Modal (dipakai untuk bayar sekarang DAN pelunasan) ──
+function PaymentModal({ total, onConfirm, onClose, processing, title }) {
     const [method, setMethod] = useState('cash');
     const [paid, setPaid] = useState('');
     const change = method === 'cash' ? Math.max(0, Number(paid) - total) : 0;
@@ -78,7 +94,7 @@ function PaymentModal({ total, onConfirm, onClose, processing }) {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
                 <div className="bg-gradient-to-br from-brand-teal to-brand-navy px-6 py-5 text-white">
-                    <p className="text-sm opacity-80 font-medium">Total Pembayaran</p>
+                    <p className="text-sm opacity-80 font-medium">{title || 'Total Pembayaran'}</p>
                     <p className="text-3xl font-serif font-bold tracking-tight">{formatRupiah(total)}</p>
                 </div>
                 <div className="p-6 space-y-4">
@@ -159,15 +175,90 @@ function PaymentModal({ total, onConfirm, onClose, processing }) {
     );
 }
 
+// ─── Pay Later Confirm Modal ──────────────────────────
+function PayLaterModal({ total, items, orderType, tableNumber, onConfirm, onClose, processing }) {
+    const [customerName, setCustomerName] = useState('');
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                <div className="bg-gradient-to-br from-brand-gold to-brand-coral px-6 py-5 text-white">
+                    <p className="text-sm opacity-80 font-medium">⏳ Bayar Nanti</p>
+                    <p className="text-3xl font-serif font-bold tracking-tight">{formatRupiah(total)}</p>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div className="bg-brand-gold/10 border border-brand-gold/20 rounded-xl p-3 text-center">
+                        <p className="text-xs text-brand-gold font-semibold">Pesanan akan disimpan dan bisa dilunasi nanti</p>
+                    </div>
+
+                    {/* Ringkasan */}
+                    <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-sm max-h-32 overflow-y-auto">
+                        {items.map((item) => (
+                            <div key={item.product_id} className="flex justify-between text-gray-600">
+                                <span>{item.quantity}x {item.name}</span>
+                                <span className="font-medium">{formatRupiah(item.subtotal)}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Customer name */}
+                    <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Nama Pelanggan (opsional)</label>
+                        <input
+                            type="text"
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                            placeholder={tableNumber ? `Meja ${tableNumber}` : 'Misal: Pak Budi'}
+                            className="w-full text-sm py-3 px-4 border-2 border-brand-navy/10 rounded-xl focus:border-brand-gold focus:ring-4 focus:ring-brand-gold/20 outline-none transition"
+                            autoFocus
+                        />
+                    </div>
+
+                    {/* Info */}
+                    <div className="text-xs text-gray-400 space-y-1">
+                        <p>• Tipe: <span className="font-medium text-gray-600">{orderType === 'dine-in' ? 'Dine-in' : 'Takeaway'}</span></p>
+                        {tableNumber && <p>• Meja: <span className="font-medium text-gray-600">{tableNumber}</span></p>}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition font-medium"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            onClick={() => onConfirm(customerName)}
+                            disabled={processing}
+                            className="flex-1 py-3 rounded-xl bg-gradient-to-r from-brand-gold to-brand-coral hover:from-brand-gold/90 hover:to-brand-coral/90 text-white font-semibold transition shadow-lg shadow-brand-coral/20 disabled:opacity-40"
+                        >
+                            {processing ? 'Menyimpan...' : '⏳ Simpan Pesanan'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Success Modal ────────────────────────────────────
 function SuccessModal({ transaction, onNewTransaction, onPrint }) {
+    const isPending = transaction.payment_status === 'pending';
+
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm text-center overflow-hidden">
-                <div className="bg-gradient-to-br from-brand-teal to-brand-navy px-6 py-8 text-white relative overflow-hidden">
+                <div className={`px-6 py-8 text-white relative overflow-hidden ${
+                    isPending
+                        ? 'bg-gradient-to-br from-brand-gold to-brand-coral'
+                        : 'bg-gradient-to-br from-brand-teal to-brand-navy'
+                }`}>
                     <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
-                    <div className="text-5xl mb-3 relative z-10">✅</div>
-                    <p className="text-2xl font-serif font-bold relative z-10">Transaksi Berhasil!</p>
+                    <div className="text-5xl mb-3 relative z-10">{isPending ? '⏳' : '✅'}</div>
+                    <p className="text-2xl font-serif font-bold relative z-10">
+                        {isPending ? 'Pesanan Tersimpan!' : 'Transaksi Berhasil!'}
+                    </p>
                     <p className="text-sm opacity-80 mt-1 relative z-10">{transaction.invoice_number}</p>
                 </div>
                 <div className="p-6 space-y-3">
@@ -176,15 +267,32 @@ function SuccessModal({ transaction, onNewTransaction, onPrint }) {
                             <span className="text-gray-500">Total</span>
                             <span className="font-semibold">{formatRupiah(transaction.total_amount)}</span>
                         </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-500">Dibayar</span>
-                            <span className="font-semibold">{formatRupiah(transaction.amount_paid)}</span>
-                        </div>
-                        {transaction.change > 0 && (
-                            <div className="flex justify-between">
-                                <span className="text-gray-500">Kembalian</span>
-                                <span className="font-bold text-brand-teal text-lg">{formatRupiah(transaction.change)}</span>
-                            </div>
+                        {isPending ? (
+                            <>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Status</span>
+                                    <span className="font-bold text-brand-gold">Belum Dibayar</span>
+                                </div>
+                                {transaction.customer_name && (
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500">Pelanggan</span>
+                                        <span className="font-medium">{transaction.customer_name}</span>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Dibayar</span>
+                                    <span className="font-semibold">{formatRupiah(transaction.amount_paid)}</span>
+                                </div>
+                                {transaction.change > 0 && (
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500">Kembalian</span>
+                                        <span className="font-bold text-brand-teal text-lg">{formatRupiah(transaction.change)}</span>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                     <button
@@ -205,6 +313,85 @@ function SuccessModal({ transaction, onNewTransaction, onPrint }) {
     );
 }
 
+// ─── Pending Orders Panel (Drawer) ────────────────────
+function PendingOrdersPanel({ orders, onSettle, onCancel, onClose }) {
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-end z-50">
+            <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl animate-slide-in">
+                {/* Header */}
+                <div className="px-6 py-5 bg-gradient-to-r from-brand-gold to-brand-coral text-white flex items-center justify-between shrink-0">
+                    <div>
+                        <p className="font-serif font-bold text-lg">⏳ Pesanan Belum Bayar</p>
+                        <p className="text-sm opacity-80">{orders.length} pesanan menunggu</p>
+                    </div>
+                    <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition">
+                        ✕
+                    </button>
+                </div>
+
+                {/* Orders list */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {orders.length === 0 ? (
+                        <div className="text-center py-16 text-gray-300">
+                            <p className="text-4xl mb-2">🎉</p>
+                            <p className="text-sm">Semua pesanan sudah dibayar!</p>
+                        </div>
+                    ) : (
+                        orders.map((order) => (
+                            <div key={order.id} className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-3">
+                                {/* Order header */}
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className="font-bold text-brand-navy text-sm">{order.invoice_number}</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">{timeAgo(order.created_at)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-bold text-brand-coral">{formatRupiah(order.total_amount)}</p>
+                                        <p className="text-[10px] text-gray-400 capitalize">{order.order_type}{order.table_number ? ` · Meja ${order.table_number}` : ''}</p>
+                                    </div>
+                                </div>
+
+                                {/* Customer name */}
+                                {order.customer_name && (
+                                    <div className="bg-white rounded-lg px-3 py-1.5 text-xs font-medium text-brand-navy border border-brand-navy/5">
+                                        👤 {order.customer_name}
+                                    </div>
+                                )}
+
+                                {/* Items list */}
+                                <div className="space-y-1">
+                                    {order.details?.map((d) => (
+                                        <div key={d.id} className="flex justify-between text-xs text-gray-500">
+                                            <span>{d.quantity}x {d.product?.name}</span>
+                                            <span>{formatRupiah(d.subtotal)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Action buttons */}
+                                <div className="flex gap-2 pt-1">
+                                    <button
+                                        onClick={() => onCancel(order)}
+                                        className="flex-1 py-2.5 rounded-xl border border-brand-coral/20 text-brand-coral hover:bg-brand-coral/5 text-xs font-semibold transition"
+                                    >
+                                        ✕ Batalkan
+                                    </button>
+                                    <button
+                                        onClick={() => onSettle(order)}
+                                        className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-brand-teal to-brand-navy text-white text-xs font-semibold shadow-md shadow-brand-navy/20 hover:from-brand-teal/90 hover:to-brand-navy/90 transition"
+                                    >
+                                        💰 Bayar Sekarang
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── MAIN POS PAGE ────────────────────────────────────
 const CATEGORIES = [
     { id: 'all',        label: 'Semua',      icon: '📋' },
@@ -215,17 +402,23 @@ const CATEGORIES = [
 
 const CATEGORY_EMOJI = { coffee: '☕', 'non-coffee': '🍵', makanan: '🍽️' };
 
-export default function POSIndex({ products }) {
+export default function POSIndex({ products, pendingOrders: initialPending }) {
     const [cart, setCart]               = useState([]);
     const [orderType, setOrderType]     = useState('dine-in');
     const [tableNumber, setTableNumber] = useState('');
     const [showPayment, setShowPayment] = useState(false);
+    const [showPayLater, setShowPayLater] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
+    const [showPending, setShowPending] = useState(false);
     const [lastTransaction, setLastTransaction] = useState(null);
     const [processing, setProcessing]   = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('all');
     const [error, setError]             = useState(null);
+    const [pendingOrders, setPendingOrders] = useState(initialPending ?? []);
+
+    // Settle modal state
+    const [settleTarget, setSettleTarget] = useState(null);
 
     const totalAmount = cart.reduce((sum, item) => sum + item.subtotal, 0);
     const totalItems  = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -235,6 +428,14 @@ export default function POSIndex({ products }) {
         const matchCategory = activeCategory === 'all' || p.category === activeCategory;
         return matchSearch && matchCategory;
     });
+
+    // Refresh pending orders from server
+    const refreshPending = async () => {
+        try {
+            const res = await axios.get(route('pos.pending'));
+            setPendingOrders(res.data);
+        } catch (e) { /* silent */ }
+    };
 
     // Add to cart
     const addToCart = useCallback((product) => {
@@ -277,7 +478,7 @@ export default function POSIndex({ products }) {
         setCart((prev) => prev.filter((i) => i.product_id !== productId));
     }, []);
 
-    // Checkout
+    // ─── Checkout: Bayar Sekarang ──────────────────────
     const handleConfirmPayment = async ({ method, paid }) => {
         setProcessing(true);
         setError(null);
@@ -287,6 +488,7 @@ export default function POSIndex({ products }) {
                 table_number:   tableNumber || null,
                 payment_method: method,
                 amount_paid:    paid,
+                payment_status: 'paid',
                 items:          cart,
             });
 
@@ -297,6 +499,62 @@ export default function POSIndex({ products }) {
             setError(err.response?.data?.message ?? 'Terjadi kesalahan, silakan coba lagi.');
         } finally {
             setProcessing(false);
+        }
+    };
+
+    // ─── Checkout: Bayar Nanti ─────────────────────────
+    const handleConfirmPayLater = async (customerName) => {
+        setProcessing(true);
+        setError(null);
+        try {
+            const response = await axios.post(route('pos.checkout'), {
+                order_type:     orderType,
+                table_number:   tableNumber || null,
+                payment_status: 'pending',
+                customer_name:  customerName || null,
+                items:          cart,
+            });
+
+            setLastTransaction(response.data.transaction);
+            setShowPayLater(false);
+            setShowSuccess(true);
+            refreshPending();
+        } catch (err) {
+            setError(err.response?.data?.message ?? 'Terjadi kesalahan, silakan coba lagi.');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    // ─── Settle pending payment ────────────────────────
+    const handleSettlePayment = async ({ method, paid }) => {
+        if (!settleTarget) return;
+        setProcessing(true);
+        try {
+            const res = await axios.post(route('pos.pending.settle', settleTarget.id), {
+                payment_method: method,
+                amount_paid:    paid,
+            });
+            setSettleTarget(null);
+            setLastTransaction(res.data.transaction);
+            setShowSuccess(true);
+            setShowPending(false);
+            refreshPending();
+        } catch (err) {
+            alert(err.response?.data?.message ?? 'Gagal melunasi');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    // ─── Cancel pending order ──────────────────────────
+    const handleCancelPending = async (order) => {
+        if (!confirm(`Batalkan pesanan ${order.invoice_number}? Stok bahan baku akan dikembalikan.`)) return;
+        try {
+            await axios.delete(route('pos.pending.cancel', order.id));
+            refreshPending();
+        } catch (err) {
+            alert(err.response?.data?.message ?? 'Gagal membatalkan');
         }
     };
 
@@ -328,13 +586,13 @@ export default function POSIndex({ products }) {
                                     <button
                                         key={type}
                                         onClick={() => setOrderType(type)}
-                                        className={`px-4 py-2 text-sm font-medium transition ${
+                                        className={`px-4 py-2 text-xs font-semibold transition ${
                                             orderType === type
-                                                ? 'bg-brand-teal text-white shadow-md shadow-brand-teal/20'
-                                                : 'bg-white text-gray-600 hover:bg-gray-50'
+                                                ? 'bg-brand-teal text-white'
+                                                : 'bg-white text-gray-500 hover:bg-gray-50'
                                         }`}
                                     >
-                                        {type === 'dine-in' ? '🪑 Dine-in' : '🛍️ Takeaway'}
+                                        {type === 'dine-in' ? '🍽️ Dine-in' : '🛍️ Takeaway'}
                                     </button>
                                 ))}
                             </div>
@@ -345,33 +603,33 @@ export default function POSIndex({ products }) {
                                     type="text"
                                     value={tableNumber}
                                     onChange={(e) => setTableNumber(e.target.value)}
-                                    placeholder="No. Meja (opsional)"
-                                    className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal w-40 transition"
+                                    placeholder="No. Meja"
+                                    className="w-24 text-sm border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/20 transition"
                                 />
                             )}
 
                             {/* Search */}
-                            <div className="relative flex-1 max-w-xs ml-auto">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                            <div className="flex-1 relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300">🔍</span>
                                 <input
                                     type="text"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder="Cari menu..."
-                                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal transition"
+                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/20 transition"
                                 />
                             </div>
                         </div>
 
-                        {/* Category Tabs */}
+                        {/* Categories */}
                         <div className="flex gap-2">
                             {CATEGORIES.map((cat) => (
                                 <button
                                     key={cat.id}
                                     onClick={() => setActiveCategory(cat.id)}
-                                    className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                                         activeCategory === cat.id
-                                            ? 'bg-brand-teal text-white shadow-md shadow-brand-teal/20'
+                                            ? 'bg-brand-navy text-white'
                                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                     }`}
                                 >
@@ -425,14 +683,25 @@ export default function POSIndex({ products }) {
                         <h2 className="font-bold text-brand-navy">
                             Pesanan {totalItems > 0 && <span className="text-brand-teal">({totalItems})</span>}
                         </h2>
-                        {cart.length > 0 && (
-                            <button
-                                onClick={() => setCart([])}
-                                className="text-xs text-brand-coral hover:text-brand-coral/80 transition"
-                            >
-                                Kosongkan
-                            </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                            {/* Pending badge button */}
+                            {pendingOrders.length > 0 && (
+                                <button
+                                    onClick={() => setShowPending(true)}
+                                    className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-gold/10 text-brand-gold hover:bg-brand-gold/20 text-xs font-semibold transition border border-brand-gold/20"
+                                >
+                                    ⏳ {pendingOrders.length} Belum Bayar
+                                </button>
+                            )}
+                            {cart.length > 0 && (
+                                <button
+                                    onClick={() => setCart([])}
+                                    className="text-xs text-brand-coral hover:text-brand-coral/80 transition"
+                                >
+                                    Kosongkan
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Cart items */}
@@ -467,12 +736,21 @@ export default function POSIndex({ products }) {
                             <span className="text-brand-navy">Total</span>
                             <span className="text-brand-teal">{formatRupiah(totalAmount)}</span>
                         </div>
+
+                        {/* Two checkout buttons */}
                         <button
                             onClick={() => setShowPayment(true)}
                             disabled={cart.length === 0}
                             className="w-full bg-gradient-to-r from-brand-teal to-brand-navy hover:from-brand-teal/90 hover:to-brand-navy/90 text-white font-bold py-4 rounded-2xl transition shadow-lg shadow-brand-navy/20 disabled:opacity-40 disabled:cursor-not-allowed text-lg"
                         >
                             Bayar Sekarang →
+                        </button>
+                        <button
+                            onClick={() => setShowPayLater(true)}
+                            disabled={cart.length === 0}
+                            className="w-full border-2 border-brand-gold/30 text-brand-gold hover:bg-brand-gold/5 font-semibold py-3 rounded-2xl transition disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                        >
+                            ⏳ Bayar Nanti
                         </button>
                     </div>
                 </div>
@@ -488,11 +766,42 @@ export default function POSIndex({ products }) {
                 />
             )}
 
+            {showPayLater && (
+                <PayLaterModal
+                    total={totalAmount}
+                    items={cart}
+                    orderType={orderType}
+                    tableNumber={tableNumber}
+                    onConfirm={handleConfirmPayLater}
+                    onClose={() => setShowPayLater(false)}
+                    processing={processing}
+                />
+            )}
+
             {showSuccess && lastTransaction && (
                 <SuccessModal
                     transaction={lastTransaction}
                     onNewTransaction={handleNewTransaction}
                     onPrint={() => printReceipt(lastTransaction)}
+                />
+            )}
+
+            {showPending && (
+                <PendingOrdersPanel
+                    orders={pendingOrders}
+                    onSettle={(order) => { setSettleTarget(order); setShowPending(false); }}
+                    onCancel={handleCancelPending}
+                    onClose={() => setShowPending(false)}
+                />
+            )}
+
+            {settleTarget && (
+                <PaymentModal
+                    total={settleTarget.total_amount}
+                    title={`Lunasi: ${settleTarget.customer_name || settleTarget.invoice_number}`}
+                    onConfirm={handleSettlePayment}
+                    onClose={() => setSettleTarget(null)}
+                    processing={processing}
                 />
             )}
         </AuthenticatedLayout>

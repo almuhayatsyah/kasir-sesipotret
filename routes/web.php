@@ -41,6 +41,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/checkout',              [POSController::class, 'checkout'])->name('checkout');
         Route::get('/transaction/{transaction}', [POSController::class, 'getTransaction'])->name('transaction');
         Route::get('/low-stock',              [POSController::class, 'lowStockAlert'])->name('low-stock');
+
+        // Bayar Nanti (Pending Orders)
+        Route::get('/pending',                         [POSController::class, 'pendingOrders'])->name('pending');
+        Route::post('/pending/{transaction}/settle',   [POSController::class, 'settlePayment'])->name('pending.settle');
+        Route::delete('/pending/{transaction}/cancel', [POSController::class, 'cancelPending'])->name('pending.cancel');
     });
 
     // ── Laporan Keuangan ──
