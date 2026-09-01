@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // ── Icon SVG mini ────────────────────────────────────────
 const Icon = {
@@ -128,13 +128,32 @@ export default function AuthenticatedLayout({ header, children }) {
     const { auth, flash } = usePage().props;
     const user = auth?.user;
 
-    const [collapsed, setCollapsed] = useState(false);
-    const [mobileOpen, setMobileOpen]   = useState(false);
+    const [collapsed, setCollapsed]   = useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const [canInstall, setCanInstall] = useState(false);
 
     const cur = (name) => route().current(name);
 
     const handleLogout = () => {
         router.post(route('logout'));
+    };
+
+    // PWA: pantau apakah tombol "Install App" tersedia
+    useEffect(() => {
+        if (window.__pwaInstallPrompt) setCanInstall(true);
+        const onAvailable = () => setCanInstall(true);
+        window.addEventListener('pwa-install-available', onAvailable);
+        return () => window.removeEventListener('pwa-install-available', onAvailable);
+    }, []);
+
+    const handleInstall = async () => {
+        if (!window.__pwaInstallPrompt) return;
+        window.__pwaInstallPrompt.prompt();
+        const { outcome } = await window.__pwaInstallPrompt.userChoice;
+        if (outcome === 'accepted') {
+            setCanInstall(false);
+            window.__pwaInstallPrompt = null;
+        }
     };
 
     const sidebarContent = (
@@ -183,6 +202,32 @@ export default function AuthenticatedLayout({ header, children }) {
                         </div>
                     </div>
                 )}
+                {/* PWA Install Button */}
+                {canInstall && (
+                    <button
+                        onClick={handleInstall}
+                        className={`
+                            flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium
+                            bg-brand-gold/10 text-brand-gold hover:bg-brand-gold/20
+                            transition-all duration-200 group relative border border-brand-gold/20
+                            ${collapsed ? 'justify-center' : ''}
+                        `}
+                        title={collapsed ? 'Install App' : undefined}
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 shrink-0">
+                            <path d="M12 16l-4-4h3V4h2v8h3l-4 4z" />
+                            <path d="M4 20h16" />
+                        </svg>
+                        {!collapsed && <span>Install App</span>}
+                        {collapsed && (
+                            <span className="absolute left-full ml-3 px-2 py-1 bg-brand-navy text-brand-gold text-xs rounded-lg border border-brand-gold/30
+                                whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition z-50 shadow-xl">
+                                Install App
+                            </span>
+                        )}
+                    </button>
+                )}
+
                 <button
                     onClick={handleLogout}
                     className={`
