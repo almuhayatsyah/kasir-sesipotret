@@ -1,58 +1,265 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# ☕ Kasir Coffee — Sesi Potret
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi kasir modern berbasis web untuk coffee shop **Sesi Potret**, dibangun dengan Laravel 13 + React (Inertia.js) dan dapat diinstal sebagai **Progressive Web App (PWA)** di tablet Android.
 
-## About Laravel
+![Laravel](https://img.shields.io/badge/Laravel-13.x-FF2D20?style=flat-square&logo=laravel&logoColor=white)
+![React](https://img.shields.io/badge/React-18.x-61DAFB?style=flat-square&logo=react&logoColor=black)
+![Inertia.js](https://img.shields.io/badge/Inertia.js-2.x-9553E9?style=flat-square)
+![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=flat-square&logo=pwa&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## ✨ Fitur Utama
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+| Fitur | Keterangan |
+|-------|-----------|
+| 🛒 **Point of Sale (POS)** | Keranjang belanja interaktif, cari menu real-time, kategori produk |
+| 💳 **Bayar Sekarang & Bayar Nanti** | Proses pembayaran cash/QRIS, dukungan order pending (Pay Later) |
+| 📊 **Dashboard & Laporan** | Ringkasan omset harian, grafik penjualan, export CSV |
+| 📦 **Inventori Menu** | Kelola produk, bahan baku, resep (Bill of Materials), search & filter |
+| 👥 **Manajemen User** | Tambah/edit kasir, multi-user, autentikasi aman |
+| 📱 **Progressive Web App** | Dapat diinstal di tablet Android, support offline dasar |
+| 🖨️ **Print Bluetooth** *(coming soon)* | Integrasi printer thermal via Web Bluetooth API |
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## 🛠️ Tech Stack
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- **Backend:** Laravel 13 (PHP 8.3+)
+- **Frontend:** React 18 + Inertia.js 2
+- **Build Tool:** Vite 8
+- **CSS:** Tailwind CSS 4
+- **Database:** MySQL 8
+- **Server:** Nginx + PHP-FPM
+- **SSL:** Let's Encrypt (Certbot)
+- **PWA:** Service Worker + Web App Manifest
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+---
 
-## Agentic Development
+## 🚀 Instalasi Lokal (Development)
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Prasyarat
+- PHP >= 8.3
+- Composer 2
+- Node.js >= 18
+- MySQL 8
+
+### Langkah Instalasi
 
 ```bash
-composer require laravel/boost --dev
+# 1. Clone repository
+git clone https://github.com/almuhayatsyah/kasir-sesipotret.git
+cd kasir-sesipotret
 
-php artisan boost:install
+# 2. Install dependensi PHP
+composer install
+
+# 3. Salin file environment
+cp .env.example .env
+
+# 4. Sesuaikan konfigurasi database di .env
+# DB_DATABASE, DB_USERNAME, DB_PASSWORD
+
+# 5. Generate application key
+php artisan key:generate
+
+# 6. Jalankan migrasi dan seeder
+php artisan migrate --seed
+
+# 7. Install dependensi Node.js
+npm install
+
+# 8. Jalankan development server
+php artisan serve
+npm run dev
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Akses aplikasi di: **http://localhost:8000**
 
-## Contributing
+### Akun Default (dari Seeder)
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+| Field | Value |
+|-------|-------|
+| Email | `kasir@sesipotret.com` |
+| Password | `SesiPotret2024!` |
 
-## Code of Conduct
+> ⚠️ **Ganti password** setelah login pertama kali!
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+---
 
-## Security Vulnerabilities
+## 🌐 Deploy ke VPS (Production)
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Prasyarat VPS
+- Ubuntu 22.04+
+- PHP 8.3, Composer, Node.js 20+
+- MySQL 8, Nginx, Certbot
 
-## License
+### Langkah Deploy
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+# 1. Buat database MySQL
+sudo mysql -e "
+  CREATE DATABASE kasir_sesipotret CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  CREATE USER 'kasir_user'@'localhost' IDENTIFIED BY 'your_password';
+  GRANT ALL PRIVILEGES ON kasir_sesipotret.* TO 'kasir_user'@'localhost';
+  FLUSH PRIVILEGES;
+"
+
+# 2. Clone repository
+cd /var/www
+sudo git clone https://github.com/almuhayatsyah/kasir-sesipotret.git kasir-sesipotret
+sudo chown -R $USER:www-data kasir-sesipotret
+cd kasir-sesipotret
+
+# 3. Install dependensi & konfigurasi
+composer update --no-dev --optimize-autoloader
+cp .env.example .env
+nano .env  # Isi DB_PASSWORD dan sesuaikan APP_URL
+
+php artisan key:generate
+php artisan migrate --force
+php artisan db:seed --class=ProductionSeeder
+
+# 4. Build frontend
+npm install --legacy-peer-deps
+npm run build
+
+# 5. Optimasi Laravel
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# 6. Set permission
+sudo chown -R www-data:www-data storage bootstrap/cache
+sudo chmod -R 775 storage bootstrap/cache
+```
+
+### Konfigurasi Nginx
+
+```nginx
+server {
+    listen 80;
+    server_name kasirsesipotret.my.id www.kasirsesipotret.my.id;
+    root /var/www/kasir-sesipotret/public;
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+
+    index index.php;
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+```
+
+### SSL (HTTPS)
+
+```bash
+sudo certbot --nginx -d kasirsesipotret.my.id -d www.kasirsesipotret.my.id
+```
+
+---
+
+## 🔄 Update Aplikasi (Production)
+
+Setelah setup awal, update cukup dengan satu perintah melalui alias `sesi_update` di VPS:
+
+```bash
+# Tambahkan alias ini ke ~/.bashrc di VPS:
+alias sesi_update='cd /var/www/kasir-sesipotret && \
+  git pull origin main && \
+  composer install --no-dev --optimize-autoloader -q && \
+  npm run build --silent && \
+  php artisan migrate --force -q && \
+  php artisan optimize -q && \
+  echo "✅ Kasir Sesi Potret berhasil diupdate!"'
+```
+
+Workflow update:
+```bash
+# Di komputer lokal
+git add .
+git commit -m "feat: deskripsi perubahan"
+git push origin main
+
+# Di VPS (via SSH)
+sesi_update
+```
+
+---
+
+## 📂 Struktur Direktori Penting
+
+```
+kasir-sesipotret/
+├── app/Http/Controllers/       # Controller Laravel
+│   ├── POSController.php       # Logic kasir & transaksi
+│   ├── InventoryController.php # Logic produk & bahan baku
+│   └── ReportController.php    # Logic laporan & export
+├── database/
+│   ├── migrations/             # Skema database
+│   └── seeders/
+│       ├── ProductionSeeder.php # Seeder untuk production
+│       └── MinumanSeeder.php   # Menu minuman Sesi Potret
+├── resources/js/
+│   ├── Pages/
+│   │   ├── Dashboard/          # Halaman dashboard
+│   │   ├── POS/                # Halaman kasir
+│   │   ├── Inventory/          # Halaman inventori
+│   │   ├── Report/             # Halaman laporan
+│   │   └── Setting/            # Halaman pengaturan user
+│   └── Layouts/
+│       └── AuthenticatedLayout.jsx
+└── public/
+    ├── manifest.json           # PWA manifest
+    └── sw.js                   # Service Worker
+```
+
+---
+
+## 📱 Instalasi PWA di Tablet
+
+1. Buka **https://kasirsesipotret.my.id** di Chrome Android
+2. Tap menu **⋮** → **"Add to Home Screen"** / **"Install App"**
+3. Atau tap tombol **"Install App"** yang muncul di navbar aplikasi
+4. Aplikasi akan tersimpan di layar utama tablet seperti aplikasi native
+
+---
+
+## 🔮 Roadmap
+
+- [x] POS dengan keranjang belanja
+- [x] Bayar sekarang & bayar nanti (pending order)
+- [x] Dashboard & laporan
+- [x] Manajemen inventori & resep
+- [x] Multi-user & manajemen kasir
+- [x] PWA (installable)
+- [x] Deploy production + HTTPS
+- [ ] 🖨️ Print struk via Bluetooth (EPPOS EP-RPP02)
+- [ ] Kategori menu tambahan (Jus)
+- [ ] Notifikasi stok bahan baku menipis
+
+---
+
+## 🤝 Kontribusi
+
+Repository ini bersifat privat untuk kebutuhan bisnis **Sesi Potret**. Untuk pertanyaan atau laporan bug, silakan hubungi developer.
+
+---
+
+## 📄 Lisensi
+
+Hak cipta © 2026 Sesi Potret. Seluruh hak dilindungi.
