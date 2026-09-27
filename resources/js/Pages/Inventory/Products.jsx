@@ -196,8 +196,11 @@ function ProductModal({ product, ingredients, onClose }) {
 
 // ── MAIN PAGE ─────────────────────────────────────────
 export default function Products({ products, ingredients, flash }) {
-    const [showModal, setShowModal]   = useState(false);
-    const [editTarget, setEditTarget] = useState(null);
+    const [showModal, setShowModal]     = useState(false);
+    const [editTarget, setEditTarget]   = useState(null);
+    const [search, setSearch]           = useState('');
+    const [filterStatus, setFilterStatus]     = useState('all');   // all | active | inactive
+    const [filterCategory, setFilterCategory] = useState('all');   // all | coffee | non-coffee | makanan
 
     const handleDelete = (product) => {
         if (!confirm(`Hapus menu "${product.name}"? Resepnya juga akan dihapus.`)) return;
@@ -207,6 +210,14 @@ export default function Products({ products, ingredients, flash }) {
     const handleToggle = (product) => {
         router.patch(route('inventory.products.toggle', product.id), {}, { preserveScroll: true });
     };
+
+    // ── Filter & Search (client-side) ─────────────────────
+    const filteredProducts = products.filter((p) => {
+        const matchSearch   = p.name.toLowerCase().includes(search.toLowerCase());
+        const matchStatus   = filterStatus === 'all' || (filterStatus === 'active' ? p.is_active : !p.is_active);
+        const matchCategory = filterCategory === 'all' || p.category === filterCategory;
+        return matchSearch && matchStatus && matchCategory;
+    });
 
     const activeCount = products.filter((p) => p.is_active).length;
 
@@ -253,9 +264,76 @@ export default function Products({ products, ingredients, flash }) {
                     </div>
                 </div>
 
+                {/* ── Search & Filter Bar ───────────────────────────── */}
+                <div className="bg-white rounded-2xl border border-brand-navy/5 shadow-sm p-4 space-y-3">
+                    {/* Search Input */}
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-navy/30 text-base">🔍</span>
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Cari nama menu..."
+                            className="w-full pl-9 pr-4 py-2.5 border border-brand-navy/10 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal transition placeholder:text-brand-navy/30"
+                        />
+                        {search && (
+                            <button
+                                onClick={() => setSearch('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-navy/30 hover:text-brand-navy/60 text-lg leading-none"
+                            >×</button>
+                        )}
+                    </div>
+
+                    {/* Filter Row */}
+                    <div className="flex flex-wrap gap-2">
+                        {/* Status Filter */}
+                        <div className="flex gap-1 bg-brand-navy/5 rounded-xl p-1">
+                            {[['all','Semua'],['active','✅ Aktif'],['inactive','⏸️ Nonaktif']].map(([val, label]) => (
+                                <button
+                                    key={val}
+                                    onClick={() => setFilterStatus(val)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                                        filterStatus === val
+                                            ? 'bg-white text-brand-navy shadow-sm'
+                                            : 'text-brand-navy/50 hover:text-brand-navy'
+                                    }`}
+                                >{label}</button>
+                            ))}
+                        </div>
+
+                        {/* Category Filter */}
+                        <div className="flex gap-1 bg-brand-navy/5 rounded-xl p-1">
+                            {[['all','Semua'],['coffee','☕ Coffee'],['non-coffee','🍵 Non-Coffee'],['makanan','🍽️ Makanan']].map(([val, label]) => (
+                                <button
+                                    key={val}
+                                    onClick={() => setFilterCategory(val)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                                        filterCategory === val
+                                            ? 'bg-white text-brand-navy shadow-sm'
+                                            : 'text-brand-navy/50 hover:text-brand-navy'
+                                    }`}
+                                >{label}</button>
+                            ))}
+                        </div>
+
+                        {/* Reset semua filter */}
+                        {(search || filterStatus !== 'all' || filterCategory !== 'all') && (
+                            <button
+                                onClick={() => { setSearch(''); setFilterStatus('all'); setFilterCategory('all'); }}
+                                className="px-3 py-1.5 rounded-xl text-xs font-medium text-brand-coral/70 hover:text-brand-coral hover:bg-brand-coral/10 transition"
+                            >✕ Reset Filter</button>
+                        )}
+                    </div>
+
+                    {/* Hasil pencarian info */}
+                    <p className="text-xs text-brand-navy/40">
+                        Menampilkan <span className="font-semibold text-brand-navy/70">{filteredProducts.length}</span> dari {products.length} menu
+                    </p>
+                </div>
+
                 {/* Product grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {products.map((product) => (
+                    {filteredProducts.map((product) => (
                         <div
                             key={product.id}
                             className={`bg-white rounded-2xl border shadow-sm p-5 flex flex-col gap-4 transition ${
@@ -325,10 +403,16 @@ export default function Products({ products, ingredients, flash }) {
                     ))}
                 </div>
 
-                {products.length === 0 && (
+                {filteredProducts.length === 0 && (
                     <div className="text-center py-16 text-brand-navy/40 bg-white rounded-2xl border border-brand-navy/5">
-                        <p className="text-4xl mb-2">🍵</p>
-                        <p>Belum ada menu. Tambahkan menu pertama!</p>
+                        <p className="text-4xl mb-2">{products.length === 0 ? '🍵' : '🔍'}</p>
+                        <p>{products.length === 0 ? 'Belum ada menu. Tambahkan menu pertama!' : 'Tidak ada menu yang cocok dengan pencarian.'}</p>
+                        {products.length > 0 && (
+                            <button
+                                onClick={() => { setSearch(''); setFilterStatus('all'); setFilterCategory('all'); }}
+                                className="mt-3 text-sm text-brand-teal hover:underline"
+                            >Reset filter</button>
+                        )}
                     </div>
                 )}
             </div>
