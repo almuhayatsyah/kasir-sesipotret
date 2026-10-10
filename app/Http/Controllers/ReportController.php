@@ -26,6 +26,7 @@ class ReportController extends Controller
 
         // Ringkasan Finansial
         $totalRevenue  = (int) $query->sum('total_amount');
+        $totalDiscount = (int) $query->sum('discount');
         $totalTrx      = (int) $query->count();
         $cashRevenue   = (int) $query->clone()->where('payment_method', 'cash')->sum('total_amount');
         $qrisRevenue   = (int) $query->clone()->where('payment_method', 'qris')->sum('total_amount');
@@ -39,17 +40,18 @@ class ReportController extends Controller
             ->whereBetween('transactions.created_at', [$startDate, $endDate])
             ->select(
                 'products.name',
-                'products.category',
+                'transaction_details.temperature',
+                DB::raw('COALESCE(products.sub_category, products.category) as category'),
                 DB::raw('SUM(transaction_details.quantity) as total_qty'),
                 DB::raw('SUM(transaction_details.subtotal) as total_revenue')
             )
-            ->groupBy('products.id', 'products.name', 'products.category')
+            ->groupBy('products.id', 'products.name', 'products.sub_category', 'products.category', 'transaction_details.temperature')
             ->orderByDesc('total_qty')
             ->get();
 
         // 3. Riwayat Transaksi Detail
         $transactions = Transaction::paid()
-            ->with('user')
+            ->with(['user', 'details.product'])
             ->whereBetween('created_at', [$startDate, $endDate])
             ->orderByDesc('created_at')
             ->get();
@@ -61,6 +63,7 @@ class ReportController extends Controller
             ],
             'stats' => [
                 'total_revenue'  => $totalRevenue,
+                'total_discount' => $totalDiscount,
                 'total_trx'      => $totalTrx,
                 'cash_revenue'   => $cashRevenue,
                 'qris_revenue'   => $qrisRevenue,
@@ -96,7 +99,7 @@ class ReportController extends Controller
             $file = fopen('php://output', 'w');
             
             // CSV Header
-            fputcsv($file, ['No Invoice', 'Waktu Transaksi', 'Tipe Order', 'No. Meja', 'Metode Bayar', 'Total Belanja (Rp)']);
+            fputcsv($file, ['No Invoice', 'Waktu Transaksi', 'Tipe Order', 'No. Meja', 'Metode Bayar', 'Subtotal (Rp)', 'Diskon (Rp)', 'Total Belanja (Rp)']);
             
             // Rows
             foreach ($transactions as $trx) {
@@ -106,6 +109,8 @@ class ReportController extends Controller
                     strtoupper($trx->order_type),
                     $trx->table_number ?? '-',
                     strtoupper($trx->payment_method),
+                    ($trx->total_amount + $trx->discount),
+                    $trx->discount,
                     $trx->total_amount
                 ]);
             }

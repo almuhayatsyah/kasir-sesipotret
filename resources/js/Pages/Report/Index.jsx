@@ -5,6 +5,126 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 const formatRupiah = (amount) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount ?? 0);
 
+// ─── Receipt Printer ──────────────────────────────────
+// Lebar thermal 58mm ≈ 32 karakter monospace
+const C = 32; // lebar kolom
+const pad  = (str, len) => String(str).padEnd(len, " ");
+const rpad = (str, len) => String(str).padStart(len, " ");
+const center = (str) => {
+    const s = String(str);
+    const sp = Math.max(0, Math.floor((C - s.length) / 2));
+    return " ".repeat(sp) + s;
+};
+const divider  = "=".repeat(C);
+const divider2 = "-".repeat(C);
+
+const printReceipt = (transaction) => {
+    const isPending = transaction.payment_status === "pending";
+    const now = new Date().toLocaleString("id-ID", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit",
+    });
+
+    const minuman = (transaction.details || []).filter(
+        (d) => d.product?.category === "minuman",
+    );
+    const makanan = (transaction.details || []).filter(
+        (d) => d.product?.category !== "minuman",
+    );
+
+    const fmtItem = (d) => {
+        const suhu = d.temperature
+            ? ` [${d.temperature === "hot" ? "HOT" : "ICE"}]`
+            : "";
+        const nama = `${d.product?.name ?? ""}${suhu}`;
+        const namaLine = nama.length > C - 2 ? nama.slice(0, C - 2) : nama;
+        const qty    = `  ${d.quantity}x`;
+        const harga  = formatRupiah(d.price);
+        const sub    = formatRupiah(d.subtotal);
+        const gap    = C - qty.length - harga.length - sub.length - 3;
+        const hargaLine = `${qty} ${harga}${" ".repeat(Math.max(1, gap))}${sub}`;
+        return `${namaLine}\n${hargaLine}`;
+    };
+
+    const lines = [
+        divider,
+        center("SESI POTRET"),
+        center("Coffee & Eatery"),
+        divider,
+        `No : ${transaction.invoice_number}`,
+        `Tgl: ${now}`,
+        `Jns: ${transaction.order_type === "dine-in" ? "Dine-in" : "Takeaway"}`,
+        transaction.table_number
+            ? `Meja: No. ${transaction.table_number}`
+            : null,
+        transaction.customer_name
+            ? `Cust: ${transaction.customer_name}`
+            : null,
+        divider2,
+
+        minuman.length > 0 ? center("[ MINUMAN ]") : null,
+        minuman.length > 0 ? divider2 : null,
+        ...minuman.map(fmtItem),
+
+        makanan.length > 0 ? divider2 : null,
+        makanan.length > 0 ? center("[ MAKANAN ]") : null,
+        makanan.length > 0 ? divider2 : null,
+        ...makanan.map(fmtItem),
+
+        divider2,
+        transaction.discount > 0 ? `${pad("SUBTOTAL", 16)}${rpad(formatRupiah(transaction.total_amount + transaction.discount), C - 16)}` : null,
+        transaction.discount > 0 ? `${pad("DISKON", 16)}${rpad("-" + formatRupiah(transaction.discount), C - 16)}` : null,
+        `${pad("TOTAL", 16)}${rpad(formatRupiah(transaction.total_amount), C - 16)}`,
+
+        ...(isPending
+            ? [
+                divider,
+                center("** BELUM DIBAYAR **"),
+                center("Selesaikan pembayaran"),
+              ]
+            : [
+                `${pad("BAYAR", 16)}${rpad(formatRupiah(transaction.amount_paid), C - 16)}`,
+                transaction.change > 0
+                    ? `${pad("KEMBALI", 16)}${rpad(formatRupiah(transaction.change), C - 16)}`
+                    : null,
+                divider,
+                center((transaction.payment_method || "TUNAI").toUpperCase()),
+              ]),
+
+        divider,
+        center("Terima kasih!"),
+        center("Selamat menikmati"),
+        divider,
+        "\n\n"
+    ]
+        .filter((l) => l !== null)
+        .join("\n");
+
+    if (/android/i.test(navigator.userAgent)) {
+        try {
+            const base64data = btoa(unescape(encodeURIComponent(lines)));
+            const intentUrl = "intent:" + base64data + "#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;";
+            window.location.href = intentUrl;
+        } catch (e) {
+            console.error("Gagal format RawBT:", e);
+            alert("Gagal mencetak struk. Pastikan aplikasi RawBT sudah terinstall.");
+        }
+    } else {
+        const win = window.open("", "_blank", "width=340,height=700");
+        win.document.write(`<!DOCTYPE html><html><head>
+<title>Struk ${transaction.invoice_number}</title>
+<style>
+  @page { margin: 0; size: 58mm auto; }
+  body { margin: 4px; font-family: 'Courier New', Courier, monospace; font-size: 11px; }
+  pre { white-space: pre-wrap; word-break: break-word; }
+</style>
+</head><body><pre>${lines}</pre></body></html>`);
+        win.document.close();
+        win.print();
+        win.close();
+    }
+};
+
 export default function ReportIndex({ filters, stats, productSales, transactions }) {
     const [startDate, setStartDate] = useState(filters.start_date);
     const [endDate, setEndDate] = useState(filters.end_date);
@@ -163,11 +283,16 @@ export default function ReportIndex({ filters, stats, productSales, transactions
                 </div>
 
                 {/* ── STATS CARDS ── */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 print:gap-2">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 print:gap-2">
                     <div className="bg-white border border-brand-navy/5 p-5 rounded-2xl shadow-sm print:border-black print:rounded-none print:shadow-none">
                         <p className="text-xs text-brand-navy/50 font-medium print:text-black">Total Pendapatan</p>
                         <p className="text-2xl font-extrabold text-brand-navy mt-1.5 print:text-black">{formatRupiah(stats.total_revenue)}</p>
-                        <p className="text-[10px] text-brand-navy/40 mt-1 print:text-black">Bruto penjualan menu</p>
+                        <p className="text-[10px] text-brand-navy/40 mt-1 print:text-black">Bruto penjualan bersih</p>
+                    </div>
+                    <div className="bg-white border border-brand-navy/5 p-5 rounded-2xl shadow-sm print:border-black print:rounded-none print:shadow-none">
+                        <p className="text-xs text-brand-navy/50 font-medium print:text-black">Total Diskon</p>
+                        <p className="text-2xl font-extrabold text-brand-coral mt-1.5 print:text-black">{formatRupiah(stats.total_discount)}</p>
+                        <p className="text-[10px] text-brand-navy/40 mt-1 print:text-black">Potongan pelanggan</p>
                     </div>
                     <div className="bg-white border border-brand-navy/5 p-5 rounded-2xl shadow-sm print:border-black print:rounded-none print:shadow-none">
                         <p className="text-xs text-brand-navy/50 font-medium print:text-black">Total Transaksi</p>
@@ -236,7 +361,7 @@ export default function ReportIndex({ filters, stats, productSales, transactions
                                     <tbody className="divide-y divide-brand-navy/5 print:divide-black">
                                         {productSales.map((item, idx) => (
                                             <tr key={idx} className="hover:bg-brand-navy/5 print:border-b print:border-black/50">
-                                                <td className="px-6 py-3.5 font-medium text-brand-navy print:text-black">{item.name}</td>
+                                                <td className="px-6 py-3.5 font-medium text-brand-navy print:text-black">{item.name}{item.temperature ? ` (${item.temperature === 'hot' ? 'Hot' : 'Ice'})` : ''}</td>
                                                 <td className="px-6 py-3.5">
                                                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full uppercase print:border print:border-black print:text-black print:bg-transparent ${
                                                         item.category === 'coffee' ? 'bg-brand-navy/10 text-brand-navy' :
@@ -276,7 +401,9 @@ export default function ReportIndex({ filters, stats, productSales, transactions
                                             <th className="px-6 py-3">Tanggal / Waktu</th>
                                             <th className="px-6 py-3">Tipe Order</th>
                                             <th className="px-6 py-3">Metode Bayar</th>
-                                            <th className="px-6 py-3 text-right">Total Belanja</th>
+                                            <th className="px-6 py-3 text-right">Diskon</th>
+                                            <th className="px-6 py-3 text-right">Total Akhir</th>
+                                            <th className="px-6 py-3 text-center">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-brand-navy/5">
@@ -294,7 +421,19 @@ export default function ReportIndex({ filters, stats, productSales, transactions
                                                         {trx.payment_method.toUpperCase()}
                                                     </span>
                                                 </td>
+                                                <td className="px-6 py-3.5 text-right font-medium text-brand-coral">
+                                                    {trx.discount > 0 ? `-${formatRupiah(trx.discount)}` : '-'}
+                                                </td>
                                                 <td className="px-6 py-3.5 text-right font-bold text-brand-navy">{formatRupiah(trx.total_amount)}</td>
+                                                <td className="px-6 py-3.5 text-center">
+                                                    <button
+                                                        onClick={() => printReceipt(trx)}
+                                                        className="px-3 py-1.5 bg-brand-navy/10 text-brand-navy hover:bg-brand-navy/20 text-xs font-semibold rounded-lg transition"
+                                                        title="Print Ulang Struk"
+                                                    >
+                                                        🖨️ Cetak
+                                                    </button>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>

@@ -46,6 +46,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/pending',                         [POSController::class, 'pendingOrders'])->name('pending');
         Route::post('/pending/{transaction}/settle',   [POSController::class, 'settlePayment'])->name('pending.settle');
         Route::delete('/pending/{transaction}/cancel', [POSController::class, 'cancelPending'])->name('pending.cancel');
+
+        // Antrian Dapur / Barista
+        Route::get('/antrian',                              [POSController::class, 'antrian'])->name('antrian');
+        Route::patch('/antrian/{transaction}/selesai',      [POSController::class, 'selesaiAntrian'])->name('antrian.selesai');
     });
 
     // ── Laporan Keuangan ──

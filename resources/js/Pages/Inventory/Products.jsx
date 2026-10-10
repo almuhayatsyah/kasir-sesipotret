@@ -5,6 +5,29 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 const formatRupiah = (amount) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount ?? 0);
 
+// Jenis minuman (sub_category) — harus sama dengan validasi di InventoryController
+const DRINK_CATEGORIES = [
+    { id: 'coffee',     label: 'Coffee',           icon: '☕', style: 'bg-brand-navy/10 text-brand-navy' },
+    { id: 'non-coffee', label: 'Non Coffee',       icon: '🍵', style: 'bg-brand-teal/10 text-brand-teal' },
+    { id: 'refreshing', label: 'Refreshing Drink', icon: '🍋', style: 'bg-yellow-100 text-yellow-700' },
+    { id: 'healthy',    label: 'Healthy Drink',    icon: '🌿', style: 'bg-green-100 text-green-700' },
+];
+const FOOD_CATEGORIES = [
+    { id: 'snack',     label: 'Snack',     icon: '🍿', style: 'bg-amber-100 text-amber-700' },
+    { id: 'makanan',   label: 'Makanan',   icon: '🍽️', style: 'bg-blue-100 text-blue-700' },
+    { id: 'aneka-mie', label: 'Aneka Mie', icon: '🍜', style: 'bg-emerald-100 text-emerald-700' },
+];
+const ALL_CATEGORIES = [...DRINK_CATEGORIES, ...FOOD_CATEGORIES];
+const findCategory = (key) => ALL_CATEGORIES.find((c) => c.id === key) ?? { id: key, label: key, icon: '🍽️', style: 'bg-brand-coral/10 text-brand-coral' };
+
+// Mode suhu minuman
+const TEMPERATURE_MODES = [
+    { id: 'both',   label: '🔥🧊 Hot & Ice' },
+    { id: 'hot',    label: '🔥 Hanya Hot' },
+    { id: 'ice',    label: '🧊 Hanya Ice' },
+    { id: 'single', label: '💰 Harga Tunggal' },
+];
+
 // ── Recipe Row dalam Form ─────────────────────────────
 function RecipeRow({ recipe, index, ingredients, onChange, onRemove }) {
     return (
@@ -46,13 +69,26 @@ function ProductModal({ product, ingredients, onClose }) {
         quantity_needed: r.quantity_needed,
     })) ?? [];
 
+    const hotVariant = product?.variants?.find((v) => v.temperature === 'hot');
+    const iceVariant = product?.variants?.find((v) => v.temperature === 'ice');
+
     const form = useForm({
-        name:      product?.name      ?? '',
-        category:  product?.category  ?? 'coffee',
-        price:     product?.price     ?? '',
-        is_active: product?.is_active ?? true,
-        recipes:   defaultRecipes,
+        name:             product?.name             ?? '',
+        category:         product?.category         ?? 'minuman',
+        sub_category:     product?.sub_category     ?? (product?.category === 'makanan' ? 'snack' : 'coffee'),
+        temperature_mode: product?.temperature_mode ?? 'both',
+        price:            (product?.category === 'makanan' || product?.temperature_mode === 'single') ? (product?.price ?? '') : '',
+        price_hot:        hotVariant?.price         ?? '',
+        price_ice:        iceVariant?.price         ?? '',
+        is_active:        product?.is_active        ?? true,
+        recipes:          defaultRecipes,
     });
+
+    const isDrink     = form.data.category === 'minuman';
+    const mode        = form.data.temperature_mode;
+    const showHot     = isDrink && ['both', 'hot'].includes(mode);
+    const showIce     = isDrink && ['both', 'ice'].includes(mode);
+    const singlePrice = !isDrink || mode === 'single';
 
     const addRecipeRow = () => {
         form.setData('recipes', [...form.data.recipes, { ingredient_id: '', quantity_needed: 1 }]);
@@ -91,8 +127,8 @@ function ProductModal({ product, ingredients, onClose }) {
                 </div>
 
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-                    {/* Nama, Kategori & Harga */}
-                    <div className="grid grid-cols-3 gap-3">
+                    {/* Nama & Kategori */}
+                    <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="text-sm font-medium text-brand-navy mb-1.5 block">Nama Menu</label>
                             <input
@@ -112,25 +148,100 @@ function ProductModal({ product, ingredients, onClose }) {
                                 onChange={(e) => form.setData('category', e.target.value)}
                                 className="w-full border border-brand-navy/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal transition"
                             >
-                                <option value="coffee">☕ Coffee</option>
-                                <option value="non-coffee">🍵 Non-Coffee</option>
+                                <option value="minuman">🥤 Minuman</option>
                                 <option value="makanan">🍽️ Makanan</option>
                             </select>
                             {form.errors.category && <p className="text-brand-coral text-xs mt-1">{form.errors.category}</p>}
                         </div>
+                    </div>
+
+                    {/* Jenis Kategori (Minuman / Makanan) */}
+                    <div>
+                        <label className="text-sm font-medium text-brand-navy mb-1.5 block">
+                            {isDrink ? 'Jenis Minuman' : 'Jenis Makanan'}
+                        </label>
+                        <select
+                            value={form.data.sub_category}
+                            onChange={(e) => form.setData('sub_category', e.target.value)}
+                            className="w-full border border-brand-navy/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal transition"
+                        >
+                            {(isDrink ? DRINK_CATEGORIES : FOOD_CATEGORIES).map((c) => (
+                                <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                            ))}
+                        </select>
+                        {form.errors.sub_category && <p className="text-brand-coral text-xs mt-1">{form.errors.sub_category}</p>}
+                    </div>
+
+                    {isDrink && (
+                        <div>
+                            <label className="text-sm font-medium text-brand-navy mb-1.5 block">Pilihan Suhu</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {TEMPERATURE_MODES.map((m) => (
+                                    <button
+                                        key={m.id}
+                                        type="button"
+                                        onClick={() => form.setData('temperature_mode', m.id)}
+                                        className={`px-3 py-2 rounded-xl text-sm font-medium border transition ${
+                                            mode === m.id
+                                                ? 'bg-brand-teal text-white border-brand-teal shadow-sm'
+                                                : 'bg-white text-brand-navy/70 border-brand-navy/10 hover:border-brand-teal/40'
+                                        }`}
+                                    >{m.label}</button>
+                                ))}
+                            </div>
+                            {form.errors.temperature_mode && <p className="text-brand-coral text-xs mt-1">{form.errors.temperature_mode}</p>}
+                        </div>
+                    )}
+
+                    {/* Harga Hot / Ice */}
+                    {(showHot || showIce) && (
+                        <div className="grid grid-cols-2 gap-3">
+                            {showHot && (
+                                <div className={showIce ? '' : 'col-span-2'}>
+                                    <label className="text-sm font-medium text-brand-navy mb-1.5 block">🔥 Harga Hot (Rp)</label>
+                                    <input
+                                        type="number" min="0"
+                                        value={form.data.price_hot}
+                                        onChange={(e) => form.setData('price_hot', e.target.value === '' ? '' : Number(e.target.value))}
+                                        className="w-full border border-brand-navy/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal transition"
+                                        placeholder="20000"
+                                        required
+                                    />
+                                    {form.errors.price_hot && <p className="text-brand-coral text-xs mt-1">{form.errors.price_hot}</p>}
+                                </div>
+                            )}
+                            {showIce && (
+                                <div className={showHot ? '' : 'col-span-2'}>
+                                    <label className="text-sm font-medium text-brand-navy mb-1.5 block">🧊 Harga Ice (Rp)</label>
+                                    <input
+                                        type="number" min="0"
+                                        value={form.data.price_ice}
+                                        onChange={(e) => form.setData('price_ice', e.target.value === '' ? '' : Number(e.target.value))}
+                                        className="w-full border border-brand-navy/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal transition"
+                                        placeholder="22000"
+                                        required
+                                    />
+                                    {form.errors.price_ice && <p className="text-brand-coral text-xs mt-1">{form.errors.price_ice}</p>}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Harga tunggal (makanan / minuman tanpa pilihan suhu) */}
+                    {singlePrice && (
                         <div>
                             <label className="text-sm font-medium text-brand-navy mb-1.5 block">Harga (Rp)</label>
                             <input
                                 type="number" min="0"
                                 value={form.data.price}
-                                onChange={(e) => form.setData('price', Number(e.target.value))}
+                                onChange={(e) => form.setData('price', e.target.value === '' ? '' : Number(e.target.value))}
                                 className="w-full border border-brand-navy/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-teal/30 focus:border-brand-teal transition"
                                 placeholder="22000"
                                 required
                             />
                             {form.errors.price && <p className="text-brand-coral text-xs mt-1">{form.errors.price}</p>}
                         </div>
-                    </div>
+                    )}
 
                     {/* Status */}
                     <label className="flex items-center gap-3 cursor-pointer">
@@ -200,7 +311,7 @@ export default function Products({ products, ingredients, flash }) {
     const [editTarget, setEditTarget]   = useState(null);
     const [search, setSearch]           = useState('');
     const [filterStatus, setFilterStatus]     = useState('all');   // all | active | inactive
-    const [filterCategory, setFilterCategory] = useState('all');   // all | coffee | non-coffee | makanan
+    const [filterCategory, setFilterCategory] = useState('all');   // all | <sub_category minuman> | makanan
 
     const handleDelete = (product) => {
         if (!confirm(`Hapus menu "${product.name}"? Resepnya juga akan dihapus.`)) return;
@@ -215,7 +326,8 @@ export default function Products({ products, ingredients, flash }) {
     const filteredProducts = products.filter((p) => {
         const matchSearch   = p.name.toLowerCase().includes(search.toLowerCase());
         const matchStatus   = filterStatus === 'all' || (filterStatus === 'active' ? p.is_active : !p.is_active);
-        const matchCategory = filterCategory === 'all' || p.category === filterCategory;
+        const catKey        = p.sub_category ?? p.category;
+        const matchCategory = filterCategory === 'all' || catKey === filterCategory;
         return matchSearch && matchStatus && matchCategory;
     });
 
@@ -302,8 +414,8 @@ export default function Products({ products, ingredients, flash }) {
                         </div>
 
                         {/* Category Filter */}
-                        <div className="flex gap-1 bg-brand-navy/5 rounded-xl p-1">
-                            {[['all','Semua'],['coffee','☕ Coffee'],['non-coffee','🍵 Non-Coffee'],['makanan','🍽️ Makanan']].map(([val, label]) => (
+                        <div className="flex flex-wrap gap-1 bg-brand-navy/5 rounded-xl p-1">
+                            {[['all', 'Semua'], ...ALL_CATEGORIES.map((c) => [c.id, `${c.icon} ${c.label}`])].map(([val, label]) => (
                                 <button
                                     key={val}
                                     onClick={() => setFilterCategory(val)}
@@ -343,14 +455,29 @@ export default function Products({ products, ingredients, flash }) {
                             <div className="flex items-start justify-between">
                                 <div>
                                     <h3 className="font-semibold text-brand-navy">{product.name}</h3>
-                                    <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-1 ${
-                                        product.category === 'coffee' ? 'bg-brand-navy/10 text-brand-navy' :
-                                        product.category === 'non-coffee' ? 'bg-brand-teal/10 text-brand-teal' :
-                                        'bg-brand-gold/10 text-brand-gold'
-                                    }`}>
-                                        {product.category === 'coffee' ? '☕' : product.category === 'non-coffee' ? '🍵' : '🍽️'} {product.category}
-                                    </span>
-                                    <p className="text-brand-teal font-bold text-lg mt-0.5">{formatRupiah(product.price)}</p>
+                                    {(() => {
+                                        const catKey = product.sub_category ?? product.category;
+                                        const cat = findCategory(catKey);
+                                        return (
+                                            <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-1 ${cat.style}`}>
+                                                {cat.icon} {cat.label}
+                                            </span>
+                                        );
+                                    })()}
+                                    {product.category === 'minuman' && product.variants?.length > 0 ? (
+                                        <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
+                                            {['hot', 'ice'].map((t) => {
+                                                const v = product.variants.find((x) => x.temperature === t);
+                                                return v ? (
+                                                    <p key={t} className="text-brand-teal font-bold text-sm">
+                                                        {t === 'hot' ? '🔥' : '🧊'} {formatRupiah(v.price)}
+                                                    </p>
+                                                ) : null;
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <p className="text-brand-teal font-bold text-lg mt-0.5">{formatRupiah(product.price)}</p>
+                                    )}
                                 </div>
                                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                                     product.is_active

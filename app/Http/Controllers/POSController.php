@@ -21,7 +21,7 @@ class POSController extends Controller
     public function index(): Response
     {
         $products = Product::where('is_active', true)
-            ->with('recipes.ingredient')
+            ->with(['recipes.ingredient', 'variants'])
             ->orderBy('name')
             ->get();
 
@@ -52,18 +52,22 @@ class POSController extends Controller
             'customer_name'   => 'nullable|string|max:100',
             'items'           => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
+            'items.*.temperature' => 'nullable|in:hot,ice',
             'items.*.quantity'   => 'required|integer|min:1',
             'items.*.price'      => 'required|integer|min:0',
             'items.*.subtotal'   => 'required|integer|min:0',
+            'discount'           => 'nullable|integer|min:0',
         ]);
 
         $totalAmount = collect($validated['items'])->sum('subtotal');
+        $discount    = $validated['discount'] ?? 0;
+        $finalTotal  = max(0, $totalAmount - $discount);
         $isPending   = $validated['payment_status'] === 'pending';
 
-        // Validasi: jika bayar sekarang (paid), uang bayar harus >= total (khusus cash)
+        // Validasi: jika bayar sekarang (paid), uang bayar harus >= finalTotal (khusus cash)
         if (!$isPending) {
             $amountPaid = $validated['amount_paid'] ?? 0;
-            $change     = $amountPaid - $totalAmount;
+            $change     = $amountPaid - $finalTotal;
 
             if ($validated['payment_method'] === 'cash' && $change < 0) {
                 return response()->json(['message' => 'Uang pembayaran kurang dari total.'], 422);
@@ -79,11 +83,14 @@ class POSController extends Controller
                 'order_type'     => $validated['order_type'],
                 'table_number'   => $validated['table_number'] ?? null,
                 'payment_method' => $isPending ? null : $validated['payment_method'],
-                'total_amount'   => $totalAmount,
+                'total_amount'   => $finalTotal,
+                'discount'       => $discount,
                 'amount_paid'    => $isPending ? 0 : ($validated['amount_paid'] ?? 0),
-                'change'         => $isPending ? 0 : max(0, ($validated['amount_paid'] ?? 0) - $totalAmount),
+                'change'         => $isPending ? 0 : max(0, ($validated['amount_paid'] ?? 0) - $finalTotal),
                 'payment_status' => $validated['payment_status'],
                 'customer_name'  => $validated['customer_name'] ?? null,
+                // Langsung masuk antrian (paid maupun pending)
+                'kitchen_status' => 'antri',
             ]);
 
             // 2. Buat detail transaksi
@@ -91,6 +98,7 @@ class POSController extends Controller
                 TransactionDetail::create([
                     'transaction_id' => $transaction->id,
                     'product_id'     => $item['product_id'],
+                    'temperature'    => $item['temperature'] ?? null,
                     'quantity'       => $item['quantity'],
                     'price'          => $item['price'],
                     'subtotal'       => $item['subtotal'],
@@ -112,7 +120,7 @@ class POSController extends Controller
                 'success'     => true,
                 'message'     => $message,
                 'transaction' => $transaction,
-                'change'      => $isPending ? 0 : max(0, ($validated['amount_paid'] ?? 0) - $totalAmount),
+                'change'      => $isPending ? 0 : max(0, ($validated['amount_paid'] ?? 0) - $finalTotal),
             ]);
 
         } catch (\Throwable $e) {
@@ -147,9 +155,17 @@ class POSController extends Controller
         $validated = $request->validate([
             'payment_method' => 'required|in:cash,qris',
             'amount_paid'    => 'required|integer|min:0',
+            'discount'       => 'nullable|integer|min:0',
         ]);
 
-        $change = $validated['amount_paid'] - $transaction->total_amount;
+        // Kalau ada diskon saat pelunasan, total_amount harus dikurangi (update finalTotal)
+        $discount   = $validated['discount'] ?? 0;
+        // Total awal sebelum diskon saat pelunasan adalah total_amount lama ditambah discount lama 
+        // Tapi asumsikan pending order tidak punya diskon saat dibuat, atau kita bisa reset diskon lama.
+        $originalTotal = $transaction->total_amount + $transaction->discount;
+        $finalTotal    = max(0, $originalTotal - $discount);
+
+        $change = $validated['amount_paid'] - $finalTotal;
 
         if ($validated['payment_method'] === 'cash' && $change < 0) {
             return response()->json(['message' => 'Uang pembayaran kurang dari total.'], 422);
@@ -158,8 +174,11 @@ class POSController extends Controller
         $transaction->update([
             'payment_method' => $validated['payment_method'],
             'amount_paid'    => $validated['amount_paid'],
+            'total_amount'   => $finalTotal,
+            'discount'       => $discount,
             'change'         => max(0, $change),
             'payment_status' => 'paid',
+            'kitchen_status' => 'antri', // tetap di antrian setelah lunas
         ]);
 
         $transaction->load('details.product');
@@ -259,6 +278,33 @@ class POSController extends Controller
         $transaction->load('details.product', 'user');
 
         return response()->json($transaction);
+    }
+
+    /**
+     * Antrian aktif hari ini (kitchen_status = antri).
+     */
+    public function antrian(): JsonResponse
+    {
+        $antrian = Transaction::where('kitchen_status', 'antri')
+            ->with('details.product')
+            ->whereDate('created_at', today())
+            ->orderBy('created_at')
+            ->get();
+
+        return response()->json($antrian);
+    }
+
+    /**
+     * Tandai pesanan selesai (sudah diantar ke customer).
+     */
+    public function selesaiAntrian(Transaction $transaction): JsonResponse
+    {
+        $transaction->update(['kitchen_status' => 'selesai']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pesanan ditandai selesai.',
+        ]);
     }
 
     /**
