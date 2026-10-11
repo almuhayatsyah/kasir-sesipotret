@@ -125,11 +125,163 @@ const printReceipt = (transaction) => {
     }
 };
 
+// ─── Modal Detail Transaksi ───────────────────────────
+function TransactionDetailModal({ trx, onClose, onPrint }) {
+    if (!trx) return null;
+
+    const subtotalOriginal = (trx.total_amount ?? 0) + (trx.discount ?? 0);
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-brand-teal to-brand-navy px-6 py-4 text-white flex items-center justify-between shrink-0">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-serif font-bold text-lg">Detail Transaksi</h3>
+                            <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                                {trx.payment_status === 'paid' ? 'Lunas' : 'Belum Bayar'}
+                            </span>
+                        </div>
+                        <p className="text-xs text-white/80 mt-0.5">{trx.invoice_number}</p>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                {/* Body Content */}
+                <div className="p-6 overflow-y-auto space-y-5 flex-1">
+                    {/* Metadata Grid */}
+                    <div className="grid grid-cols-2 gap-3 bg-gray-50 rounded-xl p-3.5 border border-gray-100 text-xs">
+                        <div>
+                            <span className="text-gray-400 block">Waktu Transaksi</span>
+                            <span className="font-semibold text-brand-navy">
+                                {new Date(trx.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </span>
+                        </div>
+                        <div>
+                            <span className="text-gray-400 block">Kasir</span>
+                            <span className="font-semibold text-brand-navy">{trx.user?.name ?? 'Admin'}</span>
+                        </div>
+                        <div>
+                            <span className="text-gray-400 block">Tipe Order</span>
+                            <span className="font-semibold text-brand-navy capitalize">
+                                {trx.order_type} {trx.table_number ? `(Meja ${trx.table_number})` : ''}
+                            </span>
+                        </div>
+                        <div>
+                            <span className="text-gray-400 block">Nama Pelanggan</span>
+                            <span className="font-semibold text-brand-navy">
+                                {trx.customer_name || '-'}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Ordered Items Table */}
+                    <div>
+                        <h4 className="font-bold text-xs uppercase text-gray-400 tracking-wider mb-2">Daftar Menu yang Dipesan</h4>
+                        <div className="border border-gray-100 rounded-xl overflow-hidden">
+                            <table className="w-full text-left text-xs">
+                                <thead>
+                                    <tr className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-100">
+                                        <th className="px-3.5 py-2.5">Menu</th>
+                                        <th className="px-3.5 py-2.5 text-center">Qty</th>
+                                        <th className="px-3.5 py-2.5 text-right">Harga</th>
+                                        <th className="px-3.5 py-2.5 text-right">Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {(trx.details ?? []).map((d) => (
+                                        <tr key={d.id} className="hover:bg-gray-50/50">
+                                            <td className="px-3.5 py-2.5">
+                                                <span className="font-medium text-brand-navy">{d.product?.name ?? '-'}</span>
+                                                {d.temperature && (
+                                                    <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                                        d.temperature === 'hot'
+                                                            ? 'bg-brand-coral/15 text-brand-coral'
+                                                            : 'bg-brand-teal/15 text-brand-teal'
+                                                    }`}>
+                                                        {d.temperature === 'hot' ? '🔥 Hot' : '🧊 Ice'}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-3.5 py-2.5 text-center font-bold text-gray-700">{d.quantity}x</td>
+                                            <td className="px-3.5 py-2.5 text-right text-gray-500">{formatRupiah(d.price)}</td>
+                                            <td className="px-3.5 py-2.5 text-right font-bold text-brand-navy">{formatRupiah(d.subtotal)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Financial Summary */}
+                    <div className="bg-brand-navy/5 rounded-xl p-4 border border-brand-navy/10 space-y-2 text-xs">
+                        {trx.discount > 0 && (
+                            <div className="flex justify-between text-gray-600">
+                                <span>Subtotal Sebelum Diskon</span>
+                                <span>{formatRupiah(subtotalOriginal)}</span>
+                            </div>
+                        )}
+                        {trx.discount > 0 && (
+                            <div className="flex justify-between text-brand-coral font-semibold">
+                                <span>Diskon</span>
+                                <span>-{formatRupiah(trx.discount)}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between text-base font-bold text-brand-navy border-t border-brand-navy/10 pt-2">
+                            <span>Total Akhir</span>
+                            <span className="text-brand-teal">{formatRupiah(trx.total_amount)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-600 pt-1">
+                            <span>Metode Pembayaran</span>
+                            <span className="font-bold uppercase text-brand-navy">{trx.payment_method ?? '-'}</span>
+                        </div>
+                        {trx.payment_status === 'paid' && (
+                            <>
+                                <div className="flex justify-between text-gray-600">
+                                    <span>Uang Diterima</span>
+                                    <span>{formatRupiah(trx.amount_paid)}</span>
+                                </div>
+                                <div className="flex justify-between text-gray-600">
+                                    <span>Kembalian</span>
+                                    <span className="font-semibold text-brand-teal">{formatRupiah(trx.change)}</span>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-semibold rounded-xl transition"
+                    >
+                        Tutup
+                    </button>
+                    <button
+                        onClick={onPrint}
+                        className="px-4 py-2.5 bg-gradient-to-r from-brand-teal to-brand-navy text-white text-xs font-bold rounded-xl shadow-md shadow-brand-navy/20 hover:from-brand-teal/90 hover:to-brand-navy/90 transition flex items-center gap-1.5"
+                    >
+                        🖨️ Cetak Struk Ulang
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function ReportIndex({ filters, stats, productSales, transactions }) {
     const [startDate, setStartDate] = useState(filters.start_date);
     const [endDate, setEndDate] = useState(filters.end_date);
     const [activeTab, setActiveTab] = useState('products'); // 'products' atau 'transactions'
     const [activePreset, setActivePreset] = useState('');
+    const [selectedTrx, setSelectedTrx] = useState(null);
 
     const handleFilter = (e) => {
         e.preventDefault();
@@ -426,13 +578,22 @@ export default function ReportIndex({ filters, stats, productSales, transactions
                                                 </td>
                                                 <td className="px-6 py-3.5 text-right font-bold text-brand-navy">{formatRupiah(trx.total_amount)}</td>
                                                 <td className="px-6 py-3.5 text-center">
-                                                    <button
-                                                        onClick={() => printReceipt(trx)}
-                                                        className="px-3 py-1.5 bg-brand-navy/10 text-brand-navy hover:bg-brand-navy/20 text-xs font-semibold rounded-lg transition"
-                                                        title="Print Ulang Struk"
-                                                    >
-                                                        🖨️ Cetak
-                                                    </button>
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        <button
+                                                            onClick={() => setSelectedTrx(trx)}
+                                                            className="px-2.5 py-1.5 bg-brand-teal/10 hover:bg-brand-teal/20 text-brand-teal text-xs font-semibold rounded-lg transition flex items-center gap-1"
+                                                            title="Lihat Detail Transaksi"
+                                                        >
+                                                            👁️ Detail
+                                                        </button>
+                                                        <button
+                                                            onClick={() => printReceipt(trx)}
+                                                            className="px-2.5 py-1.5 bg-brand-navy/10 hover:bg-brand-navy/20 text-brand-navy text-xs font-semibold rounded-lg transition flex items-center gap-1"
+                                                            title="Print Ulang Struk"
+                                                        >
+                                                            🖨️ Cetak
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -444,6 +605,15 @@ export default function ReportIndex({ filters, stats, productSales, transactions
                 )}
 
             </div>
+
+            {/* Modal Detail Transaksi */}
+            {selectedTrx && (
+                <TransactionDetailModal
+                    trx={selectedTrx}
+                    onClose={() => setSelectedTrx(null)}
+                    onPrint={() => printReceipt(selectedTrx)}
+                />
+            )}
         </AuthenticatedLayout>
     );
 }

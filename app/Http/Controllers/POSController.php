@@ -192,6 +192,66 @@ class POSController extends Controller
     }
 
     /**
+     * Tambah item pesanan ke transaksi pending (open bill meja yang sama).
+     */
+    public function addItemsToPending(Request $request, Transaction $transaction): JsonResponse
+    {
+        if ($transaction->payment_status !== 'pending') {
+            return response()->json(['message' => 'Hanya pesanan belum bayar (pending) yang bisa ditambah menu.'], 422);
+        }
+
+        $validated = $request->validate([
+            'items'                 => 'required|array|min:1',
+            'items.*.product_id'    => 'required|exists:products,id',
+            'items.*.temperature'   => 'nullable|in:hot,ice',
+            'items.*.quantity'      => 'required|integer|min:1',
+            'items.*.price'         => 'required|integer|min:0',
+            'items.*.subtotal'      => 'required|integer|min:0',
+        ]);
+
+        $addedTotal = collect($validated['items'])->sum('subtotal');
+
+        DB::beginTransaction();
+        try {
+            // 1. Tambah detail transaksi baru
+            foreach ($validated['items'] as $item) {
+                TransactionDetail::create([
+                    'transaction_id' => $transaction->id,
+                    'product_id'     => $item['product_id'],
+                    'temperature'    => $item['temperature'] ?? null,
+                    'quantity'       => $item['quantity'],
+                    'price'          => $item['price'],
+                    'subtotal'       => $item['subtotal'],
+                ]);
+            }
+
+            // 2. Auto-deduct inventory untuk item tambahan
+            $this->deductInventory($validated['items']);
+
+            // 3. Update total transaksi dan kembalikan status dapur ke 'antri'
+            $transaction->increment('total_amount', $addedTotal);
+            $transaction->update([
+                'kitchen_status' => 'antri',
+            ]);
+
+            DB::commit();
+
+            $transaction->load('details.product');
+
+            return response()->json([
+                'success'      => true,
+                'message'      => 'Menu tambahan berhasil dimasukkan ke pesanan!',
+                'transaction'  => $transaction,
+                'added_items'  => $validated['items'],
+                'added_total'  => $addedTotal,
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Gagal menambah pesanan: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Batalkan pesanan pending → kembalikan stok bahan baku.
      */
     public function cancelPending(Transaction $transaction): JsonResponse

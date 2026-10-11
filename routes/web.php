@@ -45,6 +45,7 @@ Route::middleware(['auth'])->group(function () {
         // Bayar Nanti (Pending Orders)
         Route::get('/pending',                         [POSController::class, 'pendingOrders'])->name('pending');
         Route::post('/pending/{transaction}/settle',   [POSController::class, 'settlePayment'])->name('pending.settle');
+        Route::post('/pending/{transaction}/add-items', [POSController::class, 'addItemsToPending'])->name('pending.add-items');
         Route::delete('/pending/{transaction}/cancel', [POSController::class, 'cancelPending'])->name('pending.cancel');
 
         // Antrian Dapur / Barista

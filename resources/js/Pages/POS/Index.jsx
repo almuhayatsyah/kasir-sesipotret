@@ -645,7 +645,7 @@ function SuccessModal({ transaction, onNewTransaction, onPrint }) {
 }
 
 // ─── Pending Orders Panel (Drawer) ────────────────────
-function PendingOrdersPanel({ orders, onSettle, onCancel, onClose }) {
+function PendingOrdersPanel({ orders, onSettle, onCancel, onAddItems, onClose }) {
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-end z-50">
             <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl animate-slide-in">
@@ -741,26 +741,36 @@ function PendingOrdersPanel({ orders, onSettle, onCancel, onClose }) {
                                 </div>
 
                                 {/* Action buttons */}
-                                <div className="flex gap-2 pt-1">
-                                    <button
-                                        onClick={() => printReceipt(order)}
-                                        className="py-2.5 px-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-semibold transition flex items-center justify-center"
-                                        title="Cetak Struk Pending"
-                                    >
-                                        🖨️
-                                    </button>
-                                    <button
-                                        onClick={() => onCancel(order)}
-                                        className="flex-1 py-2.5 rounded-xl border border-brand-coral/20 text-brand-coral hover:bg-brand-coral/5 text-xs font-semibold transition"
-                                    >
-                                        ✕ Batalkan
-                                    </button>
-                                    <button
-                                        onClick={() => onSettle(order)}
-                                        className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-brand-teal to-brand-navy text-white text-xs font-semibold shadow-md shadow-brand-navy/20 hover:from-brand-teal/90 hover:to-brand-navy/90 transition"
-                                    >
-                                        💰 Bayar Sekarang
-                                    </button>
+                                <div className="space-y-2 pt-1">
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => printReceipt(order)}
+                                            className="py-2.5 px-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-semibold transition flex items-center justify-center"
+                                            title="Cetak Struk Pending"
+                                        >
+                                            🖨️
+                                        </button>
+                                        <button
+                                            onClick={() => onAddItems(order)}
+                                            className="flex-1 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-300 text-amber-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                                        >
+                                            ➕ Tambah Menu
+                                        </button>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => onCancel(order)}
+                                            className="py-2.5 px-3 rounded-xl border border-brand-coral/20 text-brand-coral hover:bg-brand-coral/5 text-xs font-semibold transition"
+                                        >
+                                            ✕ Batal
+                                        </button>
+                                        <button
+                                            onClick={() => onSettle(order)}
+                                            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-brand-teal to-brand-navy text-white text-xs font-semibold shadow-md shadow-brand-navy/20 hover:from-brand-teal/90 hover:to-brand-navy/90 transition text-center"
+                                        >
+                                            💰 Bayar Sekarang
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))
@@ -946,6 +956,8 @@ export default function POSIndex({ products, pendingOrders: initialPending }) {
 
     // Settle modal state
     const [settleTarget, setSettleTarget] = useState(null);
+    // Active pending order for adding items (Open bill)
+    const [activePendingOrder, setActivePendingOrder] = useState(null);
 
     const totalAmount = cart.reduce((sum, item) => sum + item.subtotal, 0);
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -1141,11 +1153,41 @@ export default function POSIndex({ products, pendingOrders: initialPending }) {
         }
     };
 
+    // ─── Tambah menu ke pesanan pending ────────────────
+    const handleConfirmAddItems = async () => {
+        if (!activePendingOrder || cart.length === 0) return;
+        setProcessing(true);
+        setError(null);
+        try {
+            const response = await axios.post(
+                route("pos.pending.add-items", activePendingOrder.id),
+                {
+                    items: cart,
+                },
+            );
+
+            setLastTransaction(response.data.transaction);
+            setActivePendingOrder(null);
+            setCart([]);
+            setShowSuccess(true);
+            refreshPending();
+            refreshAntrian();
+        } catch (err) {
+            setError(
+                err.response?.data?.message ??
+                    "Terjadi kesalahan saat menambah pesanan.",
+            );
+        } finally {
+            setProcessing(false);
+        }
+    };
+
     const handleNewTransaction = () => {
         setCart([]);
         setOrderType("dine-in");
         setTableNumber("");
         setCustomerName("");
+        setActivePendingOrder(null);
         setShowSuccess(false);
         setLastTransaction(null);
     };
@@ -1224,6 +1266,34 @@ export default function POSIndex({ products, pendingOrders: initialPending }) {
                                 />
                             </div>
                         </div>
+
+                        {/* Deteksi Otomatis: Meja punya pesanan aktif */}
+                        {orderType === "dine-in" && tableNumber.trim() && !activePendingOrder && (() => {
+                            const match = pendingOrders.find(
+                                (o) => o.table_number && o.table_number.toLowerCase() === tableNumber.trim().toLowerCase(),
+                            );
+                            if (!match) return null;
+                            return (
+                                <div className="flex items-center justify-between bg-amber-50 border border-amber-300 text-amber-900 text-xs px-3.5 py-2 rounded-xl">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-base">💡</span>
+                                        <span className="truncate">
+                                            Meja <strong>{match.table_number}</strong> sedang ada pesanan aktif ({match.customer_name ? `a.n ${match.customer_name} • ` : ""}{formatRupiah(match.total_amount)})
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActivePendingOrder(match);
+                                            setTableNumber("");
+                                        }}
+                                        className="ml-3 px-3 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold rounded-lg transition whitespace-nowrap text-xs shadow-sm"
+                                    >
+                                        ➕ Gabungkan / Tambah Menu
+                                    </button>
+                                </div>
+                            );
+                        })()}
 
                         {/* Categories */}
                         <div className="flex flex-wrap gap-2">
@@ -1417,13 +1487,37 @@ export default function POSIndex({ products, pendingOrders: initialPending }) {
                         </div>
                     </div>
 
+                    {/* Active Pending Order Banner */}
+                    {activePendingOrder && (
+                        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-between shrink-0">
+                            <div className="min-w-0 pr-2">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                                    <span>➕ Mode Tambah Menu</span>
+                                    <span className="bg-amber-200/80 px-1.5 py-0.5 rounded text-[10px]">
+                                        {activePendingOrder.table_number ? `Meja ${activePendingOrder.table_number}` : 'Takeaway'}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-amber-800 truncate mt-0.5">
+                                    {activePendingOrder.customer_name ? `a.n ${activePendingOrder.customer_name} • ` : ''}
+                                    Tagihan awal: {formatRupiah(activePendingOrder.total_amount)}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { setActivePendingOrder(null); setCart([]); }}
+                                className="text-xs font-semibold text-amber-900 bg-amber-200/70 hover:bg-amber-300 px-2.5 py-1 rounded-lg transition shrink-0"
+                            >
+                                ✕ Batal
+                            </button>
+                        </div>
+                    )}
+
                     {/* Cart items */}
                     <div className="flex-1 overflow-y-auto px-5 py-2">
                         {cart.length === 0 ? (
                             <div className="text-center py-12 text-gray-300">
                                 <p className="text-4xl mb-2">🛒</p>
                                 <p className="text-sm">
-                                    Pilih menu untuk memulai
+                                    {activePendingOrder ? "Pilih menu tambahan yang dipesan" : "Pilih menu untuk memulai"}
                                 </p>
                             </div>
                         ) : (
@@ -1445,21 +1539,22 @@ export default function POSIndex({ products, pendingOrders: initialPending }) {
                                 {error}
                             </p>
                         )}
-                        {/* Nama Customer */}
-                        <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-sm">
-                                👤
-                            </span>
-                            <input
-                                type="text"
-                                value={customerName}
-                                onChange={(e) =>
-                                    setCustomerName(e.target.value)
-                                }
-                                placeholder="Nama customer (opsional)"
-                                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/20 transition placeholder:text-gray-300"
-                            />
-                        </div>
+                        {!activePendingOrder && (
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-sm">
+                                    👤
+                                </span>
+                                <input
+                                    type="text"
+                                    value={customerName}
+                                    onChange={(e) =>
+                                        setCustomerName(e.target.value)
+                                    }
+                                    placeholder="Nama customer (opsional)"
+                                    className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/20 transition placeholder:text-gray-300"
+                                />
+                            </div>
+                        )}
 
                         <div className="flex justify-between text-sm text-gray-500">
                             <span>Subtotal ({totalItems} item)</span>
@@ -1468,27 +1563,55 @@ export default function POSIndex({ products, pendingOrders: initialPending }) {
                             </span>
                         </div>
                         <div className="flex justify-between font-bold text-lg">
-                            <span className="text-brand-navy">Total</span>
+                            <span className="text-brand-navy">Total {activePendingOrder ? "Tambahan" : ""}</span>
                             <span className="text-brand-teal">
                                 {formatRupiah(totalAmount)}
                             </span>
                         </div>
 
-                        {/* Two checkout buttons */}
-                        <button
-                            onClick={() => setShowPayment(true)}
-                            disabled={cart.length === 0}
-                            className="w-full bg-gradient-to-r from-brand-teal to-brand-navy hover:from-brand-teal/90 hover:to-brand-navy/90 text-white font-bold py-4 rounded-2xl transition shadow-lg shadow-brand-navy/20 disabled:opacity-40 disabled:cursor-not-allowed text-lg"
-                        >
-                            Bayar Sekarang →
-                        </button>
-                        <button
-                            onClick={() => setShowPayLater(true)}
-                            disabled={cart.length === 0}
-                            className="w-full border-2 border-brand-gold/30 text-brand-gold hover:bg-brand-gold/5 font-semibold py-3 rounded-2xl transition disabled:opacity-40 disabled:cursor-not-allowed text-sm"
-                        >
-                            ⏳ Bayar Nanti
-                        </button>
+                        {/* Action buttons */}
+                        {activePendingOrder ? (
+                            <div className="space-y-2 pt-1">
+                                <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-800 space-y-1">
+                                    <div className="flex justify-between">
+                                        <span>Tagihan Awal</span>
+                                        <span className="font-medium">{formatRupiah(activePendingOrder.total_amount)}</span>
+                                    </div>
+                                    <div className="flex justify-between font-bold text-amber-900">
+                                        <span>+ Menu Tambahan ({totalItems} item)</span>
+                                        <span>+{formatRupiah(totalAmount)}</span>
+                                    </div>
+                                    <div className="border-t border-amber-200 pt-1 flex justify-between font-extrabold text-sm text-brand-navy">
+                                        <span>Total Baru Meja</span>
+                                        <span>{formatRupiah(activePendingOrder.total_amount + totalAmount)}</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleConfirmAddItems}
+                                    disabled={cart.length === 0 || processing}
+                                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold py-3.5 rounded-2xl transition shadow-lg shadow-amber-600/20 disabled:opacity-40 disabled:cursor-not-allowed text-base flex items-center justify-center gap-2"
+                                >
+                                    {processing ? "Menyimpan..." : `💾 Simpan Menu Tambahan (+${formatRupiah(totalAmount)})`}
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={() => setShowPayment(true)}
+                                    disabled={cart.length === 0}
+                                    className="w-full bg-gradient-to-r from-brand-teal to-brand-navy hover:from-brand-teal/90 hover:to-brand-navy/90 text-white font-bold py-4 rounded-2xl transition shadow-lg shadow-brand-navy/20 disabled:opacity-40 disabled:cursor-not-allowed text-lg"
+                                >
+                                    Bayar Sekarang →
+                                </button>
+                                <button
+                                    onClick={() => setShowPayLater(true)}
+                                    disabled={cart.length === 0}
+                                    className="w-full border-2 border-brand-gold/30 text-brand-gold hover:bg-brand-gold/5 font-semibold py-3 rounded-2xl transition disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                                >
+                                    ⏳ Bayar Nanti
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1528,6 +1651,11 @@ export default function POSIndex({ products, pendingOrders: initialPending }) {
                     orders={pendingOrders}
                     onSettle={(order) => {
                         setSettleTarget(order);
+                        setShowPending(false);
+                    }}
+                    onAddItems={(order) => {
+                        setActivePendingOrder(order);
+                        setCart([]);
                         setShowPending(false);
                     }}
                     onCancel={handleCancelPending}
