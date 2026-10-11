@@ -103,7 +103,7 @@ const printReceipt = (transaction) => {
     if (/android/i.test(navigator.userAgent)) {
         try {
             const base64data = btoa(unescape(encodeURIComponent(lines)));
-            const intentUrl = "intent:" + base64data + "#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;";
+            const intentUrl = "intent:base64," + base64data + "#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;";
             window.location.href = intentUrl;
         } catch (e) {
             console.error("Gagal format RawBT:", e);
